@@ -336,3 +336,108 @@ The following details require further investigation before implementation:
 - Whether the calculated rate is used directly for scheduling decisions or only for performance evaluation.
 
 These details must be verified against the mathematical model and experimental methodology of the paper.
+
+
+
+---
+
+## 4. Linear Regression-Based Load Forecaster
+
+### 4.1 Purpose
+
+The DPTARA framework incorporates Linear Regression as a load forecasting component.
+
+Its purpose is to predict future resource loads using task-related information. These predictions support predictive load balancing and help prevent resource overload.
+
+### 4.2 Position in the DPTARA Workflow
+
+According to Algorithm 1:
+
+1. The load forecaster is initialized using Linear Regression.
+2. Tasks are processed and their relevant metrics are recorded.
+3. Task sizes are supplied to the prediction component.
+4. Future resource loads are predicted.
+5. The predicted loads are used as part of the predictive load balancing mechanism.
+
+### 4.3 Input and Output
+
+**Input:**
+- Task sizes.
+- Historical or previously collected workload information, if available.
+
+**Output:**
+- Predicted future resource loads.
+
+Note: The paper explicitly shows task sizes as the prediction input in Algorithm 1. It does not fully define the training dataset or feature construction procedure.
+
+### 4.4 Mathematical Background
+
+A general Linear Regression model can be represented as:
+
+\[
+\hat{y}=\beta_0+\beta_1x_1+\cdots+\beta_kx_k
+\]
+
+Where:
+
+- \(\hat{y}\): Predicted value.
+- \(x_1,\ldots,x_k\): Input features.
+- \(\beta_0\): Intercept.
+- \(\beta_1,\ldots,\beta_k\): Learned coefficients.
+
+This is the general regression formulation, not a complete regression equation specified by the paper.
+
+### 4.5 Relationship with Predictive Load Balancing
+
+The paper defines future load estimation using Equation (13):
+
+\[
+L_{pred,t}=L_{current,t}+
+\sum_{i=1}^{n}\lambda_i S_i(1-p_i)
+\]
+
+Where:
+
+- \(L_{pred,t}\): Predicted resource load.
+- \(L_{current,t}\): Current resource load.
+- \(\lambda_i\): Task arrival rate.
+- \(S_i\): Task size.
+- \(p_i\): Probability of successful task completion.
+- \(n\): Number of tasks.
+
+This equation describes the paper's predictive load balancing formulation.
+
+The precise relationship between this equation and the Linear Regression predictor requires further verification before implementation.
+
+### 4.6 Implementation Requirements
+
+The following components must be established:
+
+1. Identify the features used for regression.
+2. Identify the prediction target.
+3. Determine how training samples are generated.
+4. Construct the training dataset.
+5. Train the Linear Regression model.
+6. Generate future load predictions.
+7. Evaluate prediction performance.
+8. Integrate predictions into the scheduling workflow.
+
+### 4.7 Unspecified Details and Research Questions
+
+The paper does not explicitly provide:
+
+- The complete training dataset.
+- The exact independent variables.
+- The exact dependent variable.
+- The training and testing methodology.
+- The regression coefficients.
+- The model evaluation metrics.
+- The exact relationship between the regression output and Equation (13).
+
+These details must be investigated and documented as implementation decisions.
+
+### 4.8 Implementation Status
+
+Status: Pending implementation.
+
+The regression component has been identified and its role in DPTARA has been documented. Its precise training and prediction methodology must be established before coding.
