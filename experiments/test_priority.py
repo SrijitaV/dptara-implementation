@@ -1,5 +1,5 @@
 
-from src.models.entities import Task
+from src.models.entities import Task, Resource
 from src.models.priority_model import DynamicPriorityModel
 
 
@@ -9,6 +9,17 @@ model = DynamicPriorityModel(
     beta=1.0,
     gamma=1.0
 )
+
+resource = Resource(
+    resource_id="E1",
+    resource_type="edge",
+    capacity=100,
+    current_load=20
+)
+
+load = resource.utilization
+
+print(f"Current resource utilization: {load:.2f}")
 
 # Create sample tasks
 task1 = Task(
@@ -34,11 +45,11 @@ current_time = 20
 
 # Calculate priorities
 p1 = model.update_priority(
-    task1, current_time, current_load=20
+    task1, current_time, current_load=load
 )
 
 p2 = model.update_priority(
-    task2, current_time, current_load=20
+    task2, current_time, current_load=load
 )
 
 # Display results
