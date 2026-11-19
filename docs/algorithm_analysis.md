@@ -234,3 +234,105 @@ A separate priority calculation function will implement Equation (11) and return
 The function will be integrated into the main DPTARA scheduling workflow.
 
 **Note:** Numerical coefficients and other unspecified parameters must be identified through the paper or explicitly documented as experimental implementation assumptions.
+
+
+## 3. Algorithm 3: CalculateBalancingRate
+
+### 3.1 Purpose
+
+Algorithm 3 calculates the load balancing rate of a selected resource Rj.
+
+Its purpose is to measure how evenly the workload is distributed across the available resources.
+
+The algorithm compares the current load of a particular resource with the average load across all resources.
+
+A resource whose load is close to the average load contributes to better load balancing.
+
+### 3.2 Input and Output
+
+**Input:**
+- Rj: The selected resource for which the balancing rate is calculated.
+- Rtotal: The set of all available resources.
+
+**Output:**
+- balancing_rate: The calculated load balancing rate for resource Rj, expressed as a percentage.
+
+### 3.3 Algorithm Workflow
+
+The algorithm performs the following operations:
+
+1. Calculate the total workload across all available resources by summing their current loads.
+2. Count the total number of available resources.
+3. Calculate the average workload by dividing the total workload by the number of resources.
+4. Compare the current load of the selected resource with the calculated average load.
+5. Calculate the balancing rate based on the deviation between the selected resource's load and the average load.
+6. Return the calculated balancing rate.
+
+### 3.4 Mathematical Formulation
+
+**Step 1: Total workload**
+
+\[
+TotalTasks = \sum_{R_k \in R_{total}} R_k.current\_load
+\]
+
+**Step 2: Number of resources**
+
+\[
+NumResources = |R_{total}|
+\]
+
+**Step 3: Average workload**
+
+\[
+AverageLoad = \frac{TotalTasks}{NumResources}
+\]
+
+**Step 4: Load balancing rate**
+
+\[
+BalancingRate =
+\left(
+1 -
+\frac{|R_j.current\_load - AverageLoad|}
+{AverageLoad}
+\right)\times 100
+\]
+
+### 3.5 Interpretation
+
+- A balancing rate close to 100% indicates that the resource load is close to the system-wide average.
+- A lower balancing rate indicates a larger deviation from the average workload.
+- The algorithm provides a numerical measure of workload distribution across resources.
+
+### 3.6 Implementation Considerations
+
+The implementation requires:
+
+- Maintaining a collection of all available resources.
+- Tracking the current workload of each resource.
+- Calculating the average workload dynamically.
+- Computing the balancing rate for the selected resource.
+- Handling cases where the average workload is zero to avoid division by zero.
+
+**Important:** The paper does not explicitly specify the handling of zero average load. This must be documented as an implementation decision rather than attributed to the original algorithm.
+
+### 3.7 Integration with DPTARA
+
+CalculateBalancingRate is used to evaluate the workload distribution across resources.
+
+Its output contributes to the evaluation of the overall scheduling and resource allocation strategy.
+
+The calculated balancing rate can subsequently be used when evaluating the performance of DPTARA against baseline scheduling approaches.
+
+### 3.8 Unspecified Details
+
+The following details require further investigation before implementation:
+
+- Whether balancing rate is calculated after every task allocation or after processing a batch of tasks.
+- Whether the balancing rate is calculated for individual resources or aggregated across all resources.
+- How zero average workload should be handled.
+- How the balancing rate is incorporated into the overall objective function.
+- Whether the calculated rate is used directly for scheduling decisions or only for performance evaluation.
+
+These details must be verified against the mathematical model and experimental methodology of the paper.
