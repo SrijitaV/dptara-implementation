@@ -139,3 +139,98 @@ The paper does not fully specify:
 - The precise mechanics of priority-based resource reservation.
 
 These details must be investigated and documented before implementation decisions are finalized.
+
+## 2. Algorithm 2: Dynamic Task Prioritization
+
+### 2.1 Purpose
+
+Algorithm 2, DynamicTaskPrioritization, dynamically adjusts the priority of incoming tasks based on their original priority, waiting time, deadline, and current resource load.
+
+Its primary objective is to ensure that urgent tasks receive appropriate scheduling preference while considering the workload of the assigned resources.
+
+### 2.2 Input and Output
+
+- **Input:** Task `Ti`.
+- **Output:** Adjusted priority of task `Ti`.
+
+### 2.3 Mathematical Formulation
+
+The paper defines dynamic task priority using Equation (11):
+
+\[
+P_i = \alpha P_{orig,i}
++ \beta \left(\frac{T_{current}-T_{arrival,i}}{D_i}\right)
+- \gamma L_{current,i}
+\]
+
+Where:
+
+- `Pi`: Dynamically calculated task priority.
+- `P_orig,i`: Original task priority.
+- `alpha`: Weight assigned to original priority.
+- `beta`: Weight assigned to the aging factor.
+- `gamma`: Weight assigned to current resource load.
+- `T_current`: Current system time.
+- `T_arrival,i`: Task arrival time.
+- `D_i`: Task deadline.
+- `L_current,i`: Current load of the resource allocated to the task.
+
+### 2.4 Components of the Priority Function
+
+**A. Original Priority Contribution**
+
+The original priority represents the intrinsic importance of a task. The coefficient alpha controls its contribution to the final priority.
+
+**B. Task Aging Contribution**
+
+The aging factor measures the elapsed time since task arrival relative to its deadline allowance.
+
+As the task waits longer, its aging contribution increases, helping prevent tasks from remaining unattended indefinitely.
+
+**C. Resource Load Penalty**
+
+The current resource load is subtracted from the priority calculation. This penalizes tasks associated with heavily loaded resources and encourages workload balancing.
+
+### 2.5 Algorithm Workflow
+
+1. Receive a task as input.
+2. Retrieve its original priority and arrival time.
+3. Obtain the current system time.
+4. Retrieve its deadline information.
+5. Obtain the current load of its allocated resource.
+6. Calculate the aging factor.
+7. Calculate the adjusted priority using Equation (11).
+8. Update the task's priority.
+9. Return the adjusted priority.
+
+### 2.6 Relationship with Algorithm 1
+
+Algorithm 1 invokes DynamicTaskPrioritization for every incoming task before selecting a suitable resource.
+
+The adjusted priority is subsequently used as part of the resource selection and scheduling process.
+
+Algorithm 2 therefore acts as a supporting priority-calculation component within the overall DPTARA framework.
+
+### 2.7 Unspecified Implementation Details
+
+The paper does not explicitly establish all the following implementation details:
+
+- Exact values of alpha, beta and gamma.
+- Whether deadline is represented as an absolute timestamp or a duration.
+- The normalization method for resource load.
+- The precise priority sorting convention.
+- The frequency of priority recalculation.
+- The handling of overdue tasks.
+- The exact resource-load measurement interval.
+
+These details must be investigated before finalizing the implementation.
+
+### 2.8 Implementation Considerations
+
+The implementation will require a task representation containing original priority, arrival time, deadline information, and current resource association.
+
+A separate priority calculation function will implement Equation (11) and return the dynamically adjusted priority.
+
+The function will be integrated into the main DPTARA scheduling workflow.
+
+**Note:** Numerical coefficients and other unspecified parameters must be identified through the paper or explicitly documented as experimental implementation assumptions.
