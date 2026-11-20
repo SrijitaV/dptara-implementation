@@ -6,32 +6,22 @@ from src.resource_allocator import ResourceAllocator
 
 def main():
 
-    # Initialize resource manager
+    print("\n" + "=" * 65)
+    print("       DPTARA - RESOURCE ALLOCATION VALIDATION")
+    print("=" * 65)
+
     manager = ResourceManager()
 
-    # Register computing resources
     resources = [
-        Resource("E1", "edge", 100, 50),
-        Resource("E2", "edge", 100, 20),
-        Resource("C1", "cloud", 500, 100)
+        Resource("E1", "edge", 1000, 500),
+        Resource("E2", "edge", 1000, 100),
+        Resource("C1", "cloud", 5000, 0)
     ]
 
     for resource in resources:
         manager.register_resource(resource)
 
-    # Initialize allocator
     allocator = ResourceAllocator(manager)
-
-    # Create test tasks
-    tasks = [
-        Task(1, 30, 5, 0, 50, "emergency"),
-        Task(2, 70, 3, 1, 60, "routine"),
-        Task(3, 600, 2, 2, 80, "routine")
-    ]
-
-    print("\n" + "=" * 65)
-    print("          DPTARA - RESOURCE ALLOCATION TEST")
-    print("=" * 65)
 
     print("\nInitial Resource Status:")
 
@@ -43,42 +33,68 @@ def main():
             f"Capacity: {resource.capacity}"
         )
 
-    print("\nTask Allocation Results:")
-    print("-" * 65)
+    # -----------------------------------------
+    # TEST 1: Least-loaded eligible edge server
+    # -----------------------------------------
 
-    for task in tasks:
+    print("\nTEST 1: Least-loaded edge selection")
 
-        selected = allocator.allocate_task(task)
+    task_1 = Task(1, 5, 1, 0, 100, "routine")
 
-        if selected is not None:
-            print(
-                f"Task {task.task_id} | "
-                f"Size: {task.size_mb} MB | "
-                f"Allocated to: {selected.resource_id} | "
-                f"Type: {selected.resource_type}"
-            )
-        else:
-            print(
-                f"Task {task.task_id} | "
-                f"Size: {task.size_mb} MB | "
-                f"Allocation: FAILED - No available resource"
-            )
+    selected = allocator.allocate_task(task_1)
 
-    print("\nFinal Resource Status:")
-    print("-" * 65)
+    assert selected is not None
+    assert selected.resource_id == "E2"
 
-    for resource in manager.get_all_resources():
+    print("Selected resource:", selected.resource_id)
+    print("TEST 1 PASSED")
 
-        print(
-            f"{resource.resource_id} | "
-            f"Type: {resource.resource_type} | "
-            f"Load: {resource.current_load:.2f} | "
-            f"Available: {resource.available_capacity:.2f} | "
-            f"Utilization: {resource.utilization:.2f}"
-        )
+    # Release task before next independent test.
+    allocator.release_task(task_1)
+
+    # -----------------------------------------
+    # TEST 2: Edge preference over cloud
+    # -----------------------------------------
+
+    print("\nTEST 2: Edge preference over cloud")
+
+    task_2 = Task(2, 5, 1, 0, 100, "routine")
+
+    selected = allocator.allocate_task(task_2)
+
+    assert selected is not None
+    assert selected.resource_type == "edge"
+
+    print("Selected resource:", selected.resource_id)
+    print("TEST 2 PASSED")
+
+    allocator.release_task(task_2)
+
+    # -----------------------------------------
+    # TEST 3: Cloud fallback
+    # -----------------------------------------
+
+    print("\nTEST 3: Cloud fallback")
+
+    # Temporarily occupy both edge resources.
+    edge_1 = manager.get_resource("E1")
+    edge_2 = manager.get_resource("E2")
+
+    edge_1.current_load = edge_1.capacity
+    edge_2.current_load = edge_2.capacity
+
+    task_3 = Task(3, 5, 1, 0, 10, "routine")
+
+    selected = allocator.allocate_task(task_3)
+
+    assert selected is not None
+    assert selected.resource_type == "cloud"
+
+    print("Selected resource:", selected.resource_id)
+    print("TEST 3 PASSED")
 
     print("\n" + "=" * 65)
-    print("Resource Allocation Experiment Completed.")
+    print("ALL RESOURCE ALLOCATION TESTS PASSED")
     print("=" * 65)
 
 

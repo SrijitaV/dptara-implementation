@@ -262,55 +262,91 @@ class DPTARASimulator:
     # TASK DISPATCHING
     # --------------------------------------------------
 
+    
     def _dispatch_waiting_tasks(self):
+        """
+        Dispatch waiting tasks according to dynamically
+        calculated priority.
+
+        Higher priority values are considered first.
+        Priorities are recalculated whenever a task is
+        dispatched because system load may have changed.
+        """
 
         while self.waiting_tasks:
 
-            # FIFO baseline: process the oldest waiting task first.
-            task = self.waiting_tasks[0]
-
-            task.status = "pending"
-
             current_load = self._calculate_system_load()
 
-            task.priority = self.priority_model.calculate_priority(
-                task,
-                self.simulation_clock,
-                current_load
-            )
+            # Recalculate priority for every waiting task.
+            for task in self.waiting_tasks:
 
-            selected_resource = (
-                self.resource_allocator.allocate_task(task)
-            )
-
-            # No suitable resource is currently available.
-            # Keep this task at the front of the waiting queue.
-            if selected_resource is None:
-
-                task.status = "pending"
-                break
-
-            # Remove the task only after successful allocation.
-            self.waiting_tasks.pop(0)
-
-            self.task_executor.execute_task(
-                task,
-                selected_resource,
-                self.simulation_clock
-            )
-
-            # Schedule its completion event.
-            heapq.heappush(
-                self.event_queue,
-                (
-                    task.completion_time,
-                    0,
-                    next(self.event_counter),
-                    "completion",
+                task.priority = self.priority_model.calculate_priority(
                     task,
-                    selected_resource
+                    self.simulation_clock,
+                    current_load
+                )
+
+            # Sort by:
+            # 1. Higher priority first.
+            # 2. Earlier arrival first when priorities tie.
+            # 3. Lower task ID first as a final tie-breaker.
+            self.waiting_tasks.sort(
+                key=lambda task: (
+                    -task.priority,
+                    task.arrival_time,
+                    task.task_id
                 )
             )
+
+            task_allocated = False
+
+            # Try tasks in priority order.
+            for task in self.waiting_tasks:
+
+                task.status = "pending"
+
+                selected_resource = (
+                    self.resource_allocator.allocate_task(task)
+                )
+
+                # If this task cannot be allocated,
+                # retain it in the waiting queue and try
+                # the next task.
+                if selected_resource is None:
+                    task.status = "pending"
+                    continue
+
+                # Remove only after successful allocation.
+                self.waiting_tasks.remove(task)
+
+                self.task_executor.execute_task(
+                    task,
+                    selected_resource,
+                    self.simulation_clock
+                )
+
+                # Schedule task completion.
+                heapq.heappush(
+                    self.event_queue,
+                    (
+                        task.completion_time,
+                        0,
+                        next(self.event_counter),
+                        "completion",
+                        task,
+                        selected_resource
+                    )
+                )
+
+                task_allocated = True
+
+                # Resource load has changed. Recalculate
+                # priorities before dispatching another task.
+                break
+
+            # No waiting task could be allocated.
+            if not task_allocated:
+                break
 
     # --------------------------------------------------
     # ARRIVAL EVENT
