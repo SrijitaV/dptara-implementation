@@ -156,9 +156,10 @@ class ResourceAllocator:
 
         return selected_resource
 
+
     def release_task(self, task):
         """
-        Release CPU capacity after task execution.
+        Release CPU capacity reserved for a task.
         """
 
         if task.assigned_resource is None:
@@ -167,9 +168,13 @@ class ResourceAllocator:
         if task.cpu_demand_mips is None:
             raise ValueError("Task CPU demand is unavailable.")
 
+        if task.status not in ("allocated", "running", "completed"):
+            raise ValueError("Task is not in a releasable state.")
+
         self.resource_manager.release_load(
             task.assigned_resource,
             task.cpu_demand_mips
         )
 
         task.assigned_resource = None
+
