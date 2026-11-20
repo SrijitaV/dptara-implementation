@@ -30,6 +30,27 @@ def main():
 
     assert len(predictor.history) == len(simulator.resources)
 
+
+    print("\nPredicted Future Resource Utilization:")
+    
+    future_time = simulator.simulation_clock + 5.0
+
+    for resource_id in predictor.history:
+
+        predicted_load = predictor.predict_load(
+            resource_id,
+            future_time
+        )
+
+        print(
+            f"{resource_id}: "
+            f"{predicted_load:.4f}"
+        )
+
+        assert 0.0 <= predicted_load <= 1.0
+
+    print("\nFUTURE LOAD PREDICTION: PASSED")
+
     print("\nLOAD OBSERVATION INTEGRATION: PASSED")
 
 
