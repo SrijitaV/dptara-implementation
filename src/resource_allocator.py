@@ -7,11 +7,15 @@ class ResourceAllocator:
     """
     Allocates tasks to local, edge, or cloud resources.
 
-    CPU demand is calculated using:
-        Workload (MI) / Deadline (seconds)
+    Workload (MI) = Task size (MB) * Instructions per MB
 
-    The instructions-per-MB conversion is an
-    implementation assumption, not a paper-specified value.
+    Available compute time =
+        Task deadline - Network delay
+
+    CPU demand (MIPS) =
+        Workload / Available compute time
+
+    Instructions per MB is an implementation assumption.
     """
 
     def __init__(
@@ -29,13 +33,10 @@ class ResourceAllocator:
         self.resource_manager = resource_manager
         self.instructions_per_mb = instructions_per_mb
 
-    def calculate_cpu_demand(self, task):
+    def calculate_cpu_demand(self, task, resource=None):
         """
-        Estimate task workload and required CPU capacity.
-
-        Workload (MI) = Task size (MB) * Instructions per MB
-
-        CPU demand (MIPS) = Workload (MI) / Deadline (seconds)
+        Calculate CPU demand after accounting for
+        the selected resource's network latency.
         """
 
         if task.size_mb <= 0:
@@ -44,48 +45,63 @@ class ResourceAllocator:
         if task.deadline <= 0:
             raise ValueError("Task deadline must be positive.")
 
+        network_delay = 0.0
+
+        if resource is not None:
+            network_delay = resource.network_latency_ms / 1000.0
+
+        available_compute_time = task.deadline - network_delay
+
+        if available_compute_time <= 0:
+            return None
+
         workload = (
             task.size_mb * self.instructions_per_mb
         )
 
-        cpu_demand = workload / task.deadline
+        cpu_demand = workload / available_compute_time
 
-        task.workload_mi = workload
-        task.cpu_demand_mips = cpu_demand
+        return workload, cpu_demand
 
-        return cpu_demand
-
-    def _find_least_loaded_resource(self, resources, cpu_demand):
+    def _find_least_loaded_resource(self, resources, task):
         """
         Find the least-utilized resource that can
-        accommodate the required CPU demand.
+        accommodate the deadline-aware CPU demand.
         """
 
-        eligible_resources = [
-            resource
-            for resource in resources
-            if resource.available_capacity >= cpu_demand
-        ]
+        eligible_resources = []
+
+        for resource in resources:
+
+            demand_details = self.calculate_cpu_demand(
+                task,
+                resource
+            )
+
+            if demand_details is None:
+                continue
+
+            workload, cpu_demand = demand_details
+
+            if resource.available_capacity >= cpu_demand:
+                eligible_resources.append(
+                    (resource, workload, cpu_demand)
+                )
 
         if not eligible_resources:
             return None
 
         return min(
             eligible_resources,
-            key=lambda resource: resource.utilization
+            key=lambda item: item[0].utilization
         )
 
     def allocate_task(self, task):
         """
-        Allocate a task using hierarchical allocation.
-
-        Selection order:
+        Hierarchical allocation:
             1. Local resources
             2. Edge resources
             3. Cloud resources
-
-        Resources are selected according to available
-        CPU capacity and current utilization.
         """
 
         if not isinstance(task, Task):
@@ -94,68 +110,54 @@ class ResourceAllocator:
         if task.status != "pending":
             raise ValueError("Only pending tasks can be allocated.")
 
-        # Step 1: Calculate task CPU demand
-        cpu_demand = self.calculate_cpu_demand(task)
-
-        # Step 2: Retrieve active resources
         all_resources = (
             self.resource_manager.get_available_resources()
         )
 
-        # Step 3: Try local resources first
-        local_resources = [
-            resource for resource in all_resources
-            if resource.resource_type == "local"
-        ]
-
-        selected_resource = self._find_least_loaded_resource(
-            local_resources,
-            cpu_demand
-        )
-
-        # Step 4: Try edge resources if local resources fail
-        if selected_resource is None:
-
-            edge_resources = [
+        resource_groups = [
+            [
+                resource for resource in all_resources
+                if resource.resource_type == "local"
+            ],
+            [
                 resource for resource in all_resources
                 if resource.resource_type == "edge"
-            ]
-
-            selected_resource = self._find_least_loaded_resource(
-                edge_resources,
-                cpu_demand
-            )
-
-        # Step 5: Try cloud resources if edge resources fail
-        if selected_resource is None:
-
-            cloud_resources = [
+            ],
+            [
                 resource for resource in all_resources
                 if resource.resource_type == "cloud"
             ]
+        ]
 
-            selected_resource = self._find_least_loaded_resource(
-                cloud_resources,
-                cpu_demand
+        selected = None
+
+        for group in resource_groups:
+
+            selected = self._find_least_loaded_resource(
+                group,
+                task
             )
 
-        # Step 6: Handle allocation failure
-        if selected_resource is None:
+            if selected is not None:
+                break
+
+        if selected is None:
             task.status = "unallocated"
             return None
 
-        # Step 7: Reserve CPU capacity
+        selected_resource, workload, cpu_demand = selected
+
         self.resource_manager.add_load(
             selected_resource.resource_id,
             cpu_demand
         )
 
-        # Step 8: Update task information
+        task.workload_mi = workload
+        task.cpu_demand_mips = cpu_demand
         task.assigned_resource = selected_resource.resource_id
         task.status = "allocated"
 
         return selected_resource
-
 
     def release_task(self, task):
         """
@@ -168,7 +170,11 @@ class ResourceAllocator:
         if task.cpu_demand_mips is None:
             raise ValueError("Task CPU demand is unavailable.")
 
-        if task.status not in ("allocated", "running", "completed"):
+        if task.status not in (
+            "allocated",
+            "running",
+            "completed"
+        ):
             raise ValueError("Task is not in a releasable state.")
 
         self.resource_manager.release_load(
@@ -177,4 +183,3 @@ class ResourceAllocator:
         )
 
         task.assigned_resource = None
-
