@@ -361,6 +361,8 @@ class DPTARASimulator:
 
         return results
 
+
+
     # --------------------------------------------------
     # RESULTS
     # --------------------------------------------------
@@ -370,6 +372,13 @@ class DPTARASimulator:
         print("\n" + "=" * 58)
         print("             DPTARA SIMULATION RESULTS")
         print("=" * 58)
+
+        # ----------------------------------------------
+        # 1. Simulation overview
+        # ----------------------------------------------
+
+        print("\nSIMULATION OVERVIEW")
+        print("-" * 58)
 
         print(
             f"Task generation window: "
@@ -386,6 +395,13 @@ class DPTARASimulator:
             f"{results['total_tasks']}"
         )
 
+        # ----------------------------------------------
+        # 2. Task completion
+        # ----------------------------------------------
+
+        print("\nTASK COMPLETION")
+        print("-" * 58)
+
         print(
             f"Completed tasks: "
             f"{results['completed_tasks']}"
@@ -395,6 +411,18 @@ class DPTARASimulator:
             f"Completion rate: "
             f"{results['completion_rate_percent']:.2f}%"
         )
+
+        print(
+            f"Unallocated tasks: "
+            f"{results['unallocated_tasks']}"
+        )
+
+        # ----------------------------------------------
+        # 3. Deadline performance
+        # ----------------------------------------------
+
+        print("\nDEADLINE PERFORMANCE")
+        print("-" * 58)
 
         print(
             f"Tasks completed on time: "
@@ -417,14 +445,31 @@ class DPTARASimulator:
         )
 
         print(
-            f"Average deadline violation: "
-            f"{results['average_deadline_violation']:.4f} seconds"
+            f"Total deadline violation: "
+            f"{results['total_deadline_violation']:.6f} seconds"
         )
 
         print(
-            f"Unallocated tasks: "
-            f"{results['unallocated_tasks']}"
+            f"Average deadline violation: "
+            f"{results['average_deadline_violation']:.6f} seconds"
         )
+
+        print(
+            f"Maximum deadline violation: "
+            f"{results['maximum_deadline_violation']:.6f} seconds"
+        )
+
+        print(
+            f"Minimum deadline violation: "
+            f"{results['minimum_deadline_violation']:.6f} seconds"
+        )
+
+        # ----------------------------------------------
+        # 4. Execution performance
+        # ----------------------------------------------
+
+        print("\nEXECUTION PERFORMANCE")
+        print("-" * 58)
 
         print(
             f"Average latency: "
@@ -436,6 +481,13 @@ class DPTARASimulator:
             f"{results['average_execution_time']:.4f} seconds"
         )
 
+        # ----------------------------------------------
+        # 5. Energy and resource utilization
+        # ----------------------------------------------
+
+        print("\nENERGY AND RESOURCE UTILIZATION")
+        print("-" * 58)
+
         print(
             f"Total energy consumption: "
             f"{results['total_energy_consumption']:.4f} joules"
@@ -446,4 +498,4 @@ class DPTARASimulator:
             f"{results['average_system_utilization_percent']:.2f}%"
         )
 
-        print("=" * 58)
+        print("\n" + "=" * 58)
