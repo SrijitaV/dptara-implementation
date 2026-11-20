@@ -3,18 +3,25 @@ class Metrics:
     """
     Collects and calculates performance metrics
     for the DPTARA simulation.
+
+    Resource utilization calculated here represents
+    the instantaneous utilization at measurement time.
     """
 
     def calculate_metrics(self, tasks, resources):
+
+        # -----------------------------------------
+        # 1. Task completion statistics
+        # -----------------------------------------
 
         total_tasks = len(tasks)
 
         completed_tasks = [
             task for task in tasks
-            if task.completion_time is not None
+            if task.status == "completed"
+            and task.completion_time is not None
         ]
 
-        # Task completion statistics
         completed_count = len(completed_tasks)
 
         completion_rate = (
@@ -22,7 +29,10 @@ class Metrics:
             if total_tasks > 0 else 0.0
         )
 
-        # Average end-to-end latency
+        # -----------------------------------------
+        # 2. Average end-to-end latency
+        # -----------------------------------------
+
         latencies = [
             task.completion_time - task.arrival_time
             for task in completed_tasks
@@ -33,7 +43,10 @@ class Metrics:
             if latencies else 0.0
         )
 
-        # Average execution time
+        # -----------------------------------------
+        # 3. Average execution time
+        # -----------------------------------------
+
         execution_times = [
             task.execution_time
             for task in completed_tasks
@@ -44,13 +57,19 @@ class Metrics:
             if execution_times else 0.0
         )
 
-        # Total energy consumption
+        # -----------------------------------------
+        # 4. Total energy consumption
+        # -----------------------------------------
+
         total_energy = sum(
             task.energy_consumption
             for task in completed_tasks
         )
 
-        # Resource utilization
+        # -----------------------------------------
+        # 5. Instantaneous system utilization
+        # -----------------------------------------
+
         total_capacity = sum(
             resource.capacity for resource in resources
         )
@@ -63,6 +82,10 @@ class Metrics:
             (total_load / total_capacity) * 100
             if total_capacity > 0 else 0.0
         )
+
+        # -----------------------------------------
+        # 6. Return all metrics
+        # -----------------------------------------
 
         return {
             "total_tasks": total_tasks,

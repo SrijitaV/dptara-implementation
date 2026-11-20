@@ -1,18 +1,18 @@
 
 class EnergyManager:
     """
-    Implements the energy efficiency and energy consumption
-    equations described in the DPTARA research paper.
+    Calculates resource efficiency and energy consumption.
 
-    Equations 14 and 15.
+    Equation (14):
+        eta = (U_effective / C_total) * (1 - R_downtime)
+
+    Equation (15):
+        E = (P / eta) * execution_duration
+
+    CPU utilization is measured using MIPS.
     """
 
     def calculate_efficiency(self, resource):
-        """
-        Calculate resource utilization efficiency.
-
-        eta = (U_effective / C_total) * (1 - downtime)
-        """
 
         if resource.capacity <= 0:
             raise ValueError("Resource capacity must be positive.")
@@ -20,11 +20,21 @@ class EnergyManager:
         if not 0 <= resource.downtime_rate <= 1:
             raise ValueError("Invalid downtime rate.")
 
-        effective_utilization = resource.current_load
+        if resource.current_load < 0:
+            raise ValueError("Resource load cannot be negative.")
+
+        if resource.current_load > resource.capacity:
+            raise ValueError("Resource load exceeds capacity.")
+
+        # Effective utilization ratio
+        effective_utilization = (
+            resource.current_load / resource.capacity
+        )
 
         efficiency = (
-            effective_utilization / resource.capacity
-        ) * (1 - resource.downtime_rate)
+            effective_utilization
+            * (1 - resource.downtime_rate)
+        )
 
         return efficiency
 
@@ -34,11 +44,6 @@ class EnergyManager:
         start_time,
         end_time
     ):
-        """
-        Calculate energy consumption using Equation 15.
-
-        E = (P / eta) * (T_end - T_start)
-        """
 
         if end_time < start_time:
             raise ValueError("End time cannot precede start time.")
@@ -62,8 +67,5 @@ class EnergyManager:
         return energy
 
     def calculate_total_energy(self, energy_values):
-        """
-        Calculate total system energy consumption.
-        """
 
         return sum(energy_values)

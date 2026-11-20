@@ -16,14 +16,21 @@ class Task:
     deadline: float
     task_type: str
 
+    # Dynamic task information
     priority: Optional[float] = None
-    assigned_resource: Optional[str] = None
 
+    # Resource allocation information
+    assigned_resource: Optional[str] = None
+    workload_mi: Optional[float] = None
+    cpu_demand_mips: Optional[float] = None
+
+    # Execution information
     start_time: Optional[float] = None
     completion_time: Optional[float] = None
 
     execution_time: float = 0.0
     energy_consumption: float = 0.0
+
     status: str = "pending"
 
 
@@ -36,13 +43,16 @@ class Resource:
     resource_id: str
     resource_type: str
 
+    # CPU capacity and utilization (MIPS)
     capacity: float
     current_load: float = 0.0
 
+    # Hardware characteristics
     processing_speed_mips: float = 0.0
     power_consumption_w: float = 0.0
     network_latency_ms: float = 0.0
 
+    # Reliability and efficiency
     efficiency: float = 1.0
     downtime_rate: float = 0.0
 
@@ -50,7 +60,10 @@ class Resource:
 
     @property
     def available_capacity(self):
-        return max(0.0, self.capacity - self.current_load)
+        return max(
+            0.0,
+            self.capacity - self.current_load
+        )
 
     @property
     def utilization(self):

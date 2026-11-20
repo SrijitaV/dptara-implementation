@@ -3,62 +3,53 @@ class TaskExecutor:
     """
     Executes allocated tasks on computing resources.
 
-    Execution-time calculation uses a configurable workload
-    conversion factor because the paper does not specify
-    instructions per MB.
+    Computational execution time:
+        Workload (MI) / Allocated CPU demand (MIPS)
+
+    The workload conversion factor is an implementation
+    assumption, not a parameter specified by the paper.
     """
 
-    def __init__(self, instructions_per_mb=1000.0):
-        if instructions_per_mb <= 0:
-            raise ValueError(
-                "Instructions per MB must be positive."
-            )
-
-        self.instructions_per_mb = instructions_per_mb
-
     def execute_task(self, task, resource, current_time):
-        """
-        Execute a task on its assigned computing resource.
 
-        Execution time:
-            (Task Size in MB * Instructions per MB)
-            / Processing Speed in MIPS
+        # Step 1: Validate task
+        if task.status != "allocated":
+            raise ValueError("Task must be allocated before execution.")
 
-        Network latency is added separately.
-        """
+        if task.assigned_resource != resource.resource_id:
+            raise ValueError("Task is not assigned to this resource.")
 
-        if task.status not in ("allocated", "pending"):
-            raise ValueError("Task cannot be executed in its current state.")
+        if task.workload_mi is None or task.workload_mi <= 0:
+            raise ValueError("Invalid computational workload.")
 
-        if task.size_mb <= 0:
-            raise ValueError("Task size must be positive.")
+        if (
+            task.cpu_demand_mips is None
+            or task.cpu_demand_mips <= 0
+        ):
+            raise ValueError("Invalid allocated CPU demand.")
+
+        # Step 2: Validate resource
+        if resource.status != "active":
+            raise ValueError("Resource is not active.")
 
         if resource.processing_speed_mips <= 0:
             raise ValueError("Invalid resource processing speed.")
 
-        if resource.status != "active":
-            raise ValueError("Resource is not active.")
+        if task.cpu_demand_mips > resource.processing_speed_mips:
+            raise ValueError("Allocated CPU demand exceeds processing speed.")
 
         if current_time < task.arrival_time:
             raise ValueError("Execution cannot precede task arrival.")
 
-        if resource.current_load <= 0:
-            raise ValueError("Resource has no allocated load.")
-
-        # Step 1: Calculate computational workload
-        workload_mi = (
-            task.size_mb * self.instructions_per_mb
-        )
-
-        # Step 2: Calculate execution duration
+        # Step 3: Calculate computational execution time
         execution_time = (
-            workload_mi / resource.processing_speed_mips
+            task.workload_mi / task.cpu_demand_mips
         )
 
-        # Step 3: Calculate network delay
+        # Step 4: Calculate network delay
         network_delay = resource.network_latency_ms / 1000.0
 
-        # Step 4: Calculate execution start and completion times
+        # Step 5: Calculate execution timestamps
         task.start_time = current_time + network_delay
 
         task.execution_time = execution_time
@@ -67,7 +58,7 @@ class TaskExecutor:
             task.start_time + execution_time
         )
 
-        # Step 5: Calculate energy consumption
+        # Step 6: Calculate energy consumption
         from .energy_manager import EnergyManager
 
         energy_manager = EnergyManager()
@@ -78,7 +69,7 @@ class TaskExecutor:
             task.completion_time
         )
 
-        # Step 6: Update task status
+        # Step 7: Update task status
         task.status = "completed"
 
         return task
