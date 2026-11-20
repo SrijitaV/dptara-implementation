@@ -22,7 +22,10 @@ class Metrics:
             if total_tasks > 0 else 0.0
         )
 
-        # 1. End-to-end latency
+        # --------------------------------------------------
+        # 1. LATENCY AND EXECUTION TIME
+        # --------------------------------------------------
+
         latencies = [
             task.completion_time - task.arrival_time
             for task in completed_tasks
@@ -33,7 +36,6 @@ class Metrics:
             if latencies else 0.0
         )
 
-        # 2. Execution time
         execution_times = [
             task.execution_time
             for task in completed_tasks
@@ -44,30 +46,46 @@ class Metrics:
             if execution_times else 0.0
         )
 
-        # 3. Energy consumption
+        # --------------------------------------------------
+        # 2. ENERGY CONSUMPTION
+        # --------------------------------------------------
+
         total_energy = sum(
             task.energy_consumption
             for task in completed_tasks
         )
 
-        # 4. Deadline performance
-        on_time_tasks = []
-        late_completed_tasks = []
+        # --------------------------------------------------
+        # 3. DEADLINE PERFORMANCE
+        # --------------------------------------------------
+
+        tolerance = 1e-9
+
+        on_time_count = 0
+        late_completed_count = 0
+        deadline_violations = []
 
         for task in completed_tasks:
 
-            latency = task.completion_time - task.arrival_time
+            latency = (
+                task.completion_time - task.arrival_time
+            )
 
-            if latency <= task.deadline:
-                on_time_tasks.append(task)
+            violation = latency - task.deadline
+
+            # Avoid floating-point precision errors.
+            if violation > tolerance:
+                late_completed_count += 1
+                deadline_violations.append(violation)
             else:
-                late_completed_tasks.append(task)
+                on_time_count += 1
 
-        on_time_count = len(on_time_tasks)
-        late_completed_count = len(late_completed_tasks)
+        # Incomplete tasks are also counted as deadline misses.
+        incomplete_count = total_tasks - completed_count
 
-        # Include late and incomplete tasks in deadline misses.
-        deadline_missed_count = total_tasks - on_time_count
+        deadline_missed_count = (
+            late_completed_count + incomplete_count
+        )
 
         deadline_met_rate = (
             on_time_count / total_tasks * 100
@@ -79,17 +97,9 @@ class Metrics:
             if total_tasks > 0 else 0.0
         )
 
-        # Calculate actual deadline violations.
-        deadline_violations = [
-            (
-                task.completion_time
-                - task.arrival_time
-                - task.deadline
-            )
-            for task in late_completed_tasks
-        ]
-
-        total_deadline_violation = sum(deadline_violations)
+        total_deadline_violation = sum(
+            deadline_violations
+        )
 
         average_deadline_violation = (
             total_deadline_violation / len(deadline_violations)
@@ -106,13 +116,19 @@ class Metrics:
             if deadline_violations else 0.0
         )
 
-        # 5. Unallocated tasks
+        # --------------------------------------------------
+        # 4. UNALLOCATED TASKS
+        # --------------------------------------------------
+
         unallocated_count = sum(
             1 for task in tasks
             if task.status == "unallocated"
         )
 
-        # 6. Instantaneous resource utilization
+        # --------------------------------------------------
+        # 5. RESOURCE UTILIZATION
+        # --------------------------------------------------
+
         total_capacity = sum(
             resource.capacity for resource in resources
         )
@@ -126,7 +142,10 @@ class Metrics:
             if total_capacity > 0 else 0.0
         )
 
-        # 7. Return metrics
+        # --------------------------------------------------
+        # 6. RETURN RESULTS
+        # --------------------------------------------------
+
         return {
             "total_tasks": total_tasks,
             "completed_tasks": completed_count,
@@ -135,6 +154,7 @@ class Metrics:
             "on_time_tasks": on_time_count,
             "late_completed_tasks": late_completed_count,
             "deadline_missed_tasks": deadline_missed_count,
+
             "deadline_met_rate_percent": deadline_met_rate,
             "deadline_miss_rate_percent": deadline_miss_rate,
 
@@ -147,6 +167,7 @@ class Metrics:
 
             "average_latency": average_latency,
             "average_execution_time": average_execution_time,
+
             "total_energy_consumption": total_energy,
             "system_utilization_percent": system_utilization
         }
