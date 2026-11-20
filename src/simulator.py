@@ -189,20 +189,55 @@ class DPTARASimulator:
 
         return total_load / total_capacity
 
+    
     def _record_utilization_interval(self, next_time):
+        """
+        Record time-weighted system utilization and
+        individual resource utilization observations.
+        """
 
         elapsed_time = next_time - self.simulation_clock
 
         if elapsed_time < 0:
             raise ValueError("Simulation time cannot move backwards.")
 
+        # Record utilization for each resource.
+        # Avoid duplicate observations at the same timestamp.
+        for resource in self.resources:
+
+            if resource.capacity <= 0:
+                continue
+
+            utilization = (
+                resource.current_load / resource.capacity
+            )
+
+            utilization = max(0.0, min(1.0, utilization))
+
+            observations = self.load_predictor.history.get(
+                resource.resource_id, []
+            )
+
+            if (
+                not observations
+                or observations[-1][0] < self.simulation_clock
+            ):
+                self.load_predictor.record_observation(
+                    resource.resource_id,
+                    self.simulation_clock,
+                    utilization
+                )
+
+        # Calculate total system utilization area.
         current_load = sum(
             resource.current_load for resource in self.resources
         )
 
         self.utilization_area += current_load * elapsed_time
 
+        # Advance simulation clock.
         self.simulation_clock = next_time
+
 
 
     # --------------------------------------------------
