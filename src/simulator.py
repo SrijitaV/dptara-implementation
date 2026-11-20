@@ -1,5 +1,7 @@
 
 import random
+import heapq
+import itertools
 
 from .models.entities import Resource
 from .models.priority_model import DynamicPriorityModel
@@ -16,21 +18,12 @@ from .metrics import Metrics
 
 class DPTARASimulator:
     """
-    Central simulation controller for the DPTARA framework.
+    Event-driven DPTARA simulation controller.
 
-    This version implements a sequential simulation workflow:
-        1. Initialize resources.
-        2. Generate tasks.
-        3. Calculate dynamic priorities.
-        4. Allocate tasks.
-        5. Execute allocated tasks.
-        6. Calculate energy consumption.
-        7. Release allocated CPU capacity.
-        8. Calculate performance metrics.
+    Tasks can execute concurrently on different resources.
+    CPU allocations remain reserved until task completion.
 
-    Sequential processing is an initial implementation
-    assumption. It is not a claim of exact reproduction
-    of the paper's complete scheduling algorithm.
+    This is an initial event-driven implementation.
     """
 
     def __init__(
@@ -41,14 +34,10 @@ class DPTARASimulator:
     ):
 
         if simulation_duration <= 0:
-            raise ValueError(
-                "Simulation duration must be positive."
-            )
+            raise ValueError("Simulation duration must be positive.")
 
         if arrival_rate <= 0:
-            raise ValueError(
-                "Arrival rate must be positive."
-            )
+            raise ValueError("Arrival rate must be positive.")
 
         self.simulation_duration = simulation_duration
         self.arrival_rate = arrival_rate
@@ -56,30 +45,25 @@ class DPTARASimulator:
 
         self.rng = random.Random(seed)
 
-        # Task generation
         self.task_generator = TaskGenerator(
             arrival_rate=arrival_rate,
             seed=seed
         )
 
-        # Resource management and allocation
         self.resource_manager = ResourceManager()
 
         self.resource_allocator = ResourceAllocator(
             self.resource_manager
         )
 
-        # Task execution
         self.task_executor = TaskExecutor()
 
-        # Dynamic priority calculation
         self.priority_model = DynamicPriorityModel(
             alpha=1.0,
             beta=1.0,
             gamma=1.0
         )
 
-        # Additional framework components
         self.load_predictor = LoadPredictor()
         self.energy_manager = EnergyManager()
         self.load_balancer = LoadBalancer()
@@ -88,24 +72,29 @@ class DPTARASimulator:
         self.tasks = []
         self.resources = []
 
+        # Simulation clock
         self.simulation_clock = 0.0
+
+        # Completion events:
+        # (completion_time, sequence_number, task, resource)
+        self.completion_events = []
+        self.event_counter = itertools.count()
+
+        # Time-integrated CPU utilization
+        self.utilization_area = 0.0
 
         print("DPTARA Simulator initialized successfully.")
 
+    # --------------------------------------------------
+    # RESOURCE INITIALIZATION
+    # --------------------------------------------------
+
     def initialize_resources(self):
-        """
-        Initialize 10 edge servers and 1 cloud server.
-        """
 
         if self.resource_manager.get_all_resources():
-            raise ValueError(
-                "Resources have already been initialized."
-            )
+            raise ValueError("Resources have already been initialized.")
 
-        # -----------------------------------------
-        # 1. Initialize 10 edge servers
-        # -----------------------------------------
-
+        # Initialize 10 edge servers
         for i in range(1, 11):
 
             cpu_capacity = self.rng.randint(500, 3000)
@@ -124,10 +113,7 @@ class DPTARASimulator:
 
             self.resource_manager.register_resource(resource)
 
-        # -----------------------------------------
-        # 2. Initialize 1 cloud server
-        # -----------------------------------------
-
+        # Initialize cloud server
         cloud_capacity = self.rng.randint(2000, 10000)
 
         cloud = Resource(
@@ -147,23 +133,21 @@ class DPTARASimulator:
         self.resources = self.resource_manager.get_all_resources()
 
         print("\nResources initialized successfully.")
-        print(f"Edge servers: 10")
-        print(f"Cloud servers: 1")
+        print("Edge servers: 10")
+        print("Cloud servers: 1")
         print(f"Total resources: {len(self.resources)}")
 
         return self.resources
+
+    # --------------------------------------------------
+    # TASK GENERATION
+    # --------------------------------------------------
 
     def generate_tasks(
         self,
         task_type="normal",
         original_priority=1.0
     ):
-        """
-        Generate tasks for the configured simulation duration.
-
-        Task type and original priority are configurable
-        implementation inputs.
-        """
 
         self.tasks = self.task_generator.generate_tasks(
             duration_seconds=self.simulation_duration,
@@ -176,10 +160,11 @@ class DPTARASimulator:
 
         return self.tasks
 
+    # --------------------------------------------------
+    # SYSTEM UTILIZATION
+    # --------------------------------------------------
+
     def _calculate_system_load(self):
-        """
-        Calculate current system utilization as a ratio.
-        """
 
         total_capacity = sum(
             resource.capacity for resource in self.resources
@@ -194,82 +179,142 @@ class DPTARASimulator:
 
         return total_load / total_capacity
 
-    def process_task(self, task):
-        """
-        Process one task through allocation and execution.
-        """
+    def _record_utilization_interval(self, next_time):
 
-        # A task cannot be processed before its arrival.
-        current_time = max(
+        elapsed_time = next_time - self.simulation_clock
+
+        if elapsed_time < 0:
+            raise ValueError("Simulation time cannot move backwards.")
+
+        current_load = sum(
+            resource.current_load for resource in self.resources
+        )
+
+        self.utilization_area += current_load * elapsed_time
+
+        self.simulation_clock = next_time
+
+    # --------------------------------------------------
+    # COMPLETION EVENT HANDLING
+    # --------------------------------------------------
+
+    def _complete_next_event(self):
+
+        completion_time, _, task, resource = heapq.heappop(
+            self.completion_events
+        )
+
+        self._record_utilization_interval(completion_time)
+
+        # Preserve resource assignment for task analysis.
+        assigned_resource = task.assigned_resource
+
+        # Release the reserved CPU capacity.
+        self.resource_allocator.release_task(task)
+
+        # Restore the resource ID after release.
+        task.assigned_resource = assigned_resource
+
+        task.status = "completed"
+
+    def _advance_until(self, target_time):
+
+        while (
+            self.completion_events
+            and self.completion_events[0][0] <= target_time
+        ):
+            self._complete_next_event()
+
+        if target_time > self.simulation_clock:
+            self._record_utilization_interval(target_time)
+
+    # --------------------------------------------------
+    # TASK PROCESSING
+    # --------------------------------------------------
+
+    def process_task(self, task):
+
+        # Advance the clock to the task's arrival.
+        arrival_time = max(
             task.arrival_time,
             self.simulation_clock
         )
 
-        # -----------------------------------------
-        # 1. Calculate dynamic priority
-        # -----------------------------------------
+        self._advance_until(arrival_time)
 
+        # Calculate priority at the current dispatch time.
         current_load = self._calculate_system_load()
 
         task.priority = self.priority_model.calculate_priority(
             task,
-            current_time,
+            self.simulation_clock,
             current_load
         )
 
-        # -----------------------------------------
-        # 2. Allocate computing resource
-        # -----------------------------------------
+        # Try allocation. If all suitable resources are busy,
+        # wait for the next completion event and retry.
+        selected_resource = None
 
-        selected_resource = self.resource_allocator.allocate_task(
-            task
-        )
+        while selected_resource is None:
+
+            selected_resource = self.resource_allocator.allocate_task(
+                task
+            )
+
+            if selected_resource is not None:
+                break
+
+            if not self.completion_events:
+                # No running task can free capacity.
+                # This task cannot currently be allocated.
+                break
+
+            # Wait until at least one task completes.
+            self._complete_next_event()
+
+            # The allocator marks failed allocations as unallocated.
+            # Reset status to allow another allocation attempt.
+            task.status = "pending"
 
         if selected_resource is None:
-            print(
-                f"Task {task.task_id}: "
-                "No suitable resource available."
-            )
+            task.status = "unallocated"
             return task
 
-        # -----------------------------------------
-        # 3. Execute task
-        # -----------------------------------------
+        # Execute using the allocated CPU demand.
+        self.task_executor.execute_task(
+            task,
+            selected_resource,
+            self.simulation_clock
+        )
 
-        try:
-            self.task_executor.execute_task(
+        # The executor marks the task completed immediately.
+        # Change it to running until its completion event occurs.
+        task.status = "running"
+
+        # Schedule its future completion.
+        heapq.heappush(
+            self.completion_events,
+            (
+                task.completion_time,
+                next(self.event_counter),
                 task,
-                selected_resource,
-                current_time
+                selected_resource
             )
-
-            # Advance simulation clock to completion.
-            self.simulation_clock = task.completion_time
-
-        except Exception:
-            task.status = "failed"
-            raise
-
-        finally:
-            # Release CPU capacity only after execution
-            # and energy calculation have finished.
-            if task.assigned_resource is not None:
-                self.resource_allocator.release_task(task)
+        )
 
         return task
 
+    # --------------------------------------------------
+    # SIMULATION EXECUTION
+    # --------------------------------------------------
+
     def run(self):
-        """
-        Execute the complete sequential simulation.
-        """
 
-        print("\nStarting DPTARA simulation...")
+        print("\nStarting event-driven DPTARA simulation...")
 
-        # Initialize resources if not already initialized.
         if not self.resource_manager.get_all_resources():
             self.initialize_resources()
 
-        # Generate tasks.
         if not self.tasks:
             self.generate_tasks()
 
@@ -281,49 +326,62 @@ class DPTARASimulator:
         for task in self.tasks:
             self.process_task(task)
 
-        # -----------------------------------------
-        # Calculate final performance metrics
-        # -----------------------------------------
+        # Complete all tasks that are still running.
+        while self.completion_events:
+            self._complete_next_event()
 
+        # Calculate performance metrics.
         results = self.metrics.calculate_metrics(
             self.tasks,
             self.resources
         )
 
-        # Calculate balancing rates for the final
-        # resource state.
-        balancing_rates = (
-            self.load_balancer.calculate_all_balancing_rates(
-                self.resources
-            )
-            if self.resources else {}
+        total_capacity = sum(
+            resource.capacity for resource in self.resources
+        )
+
+        # Time-weighted average utilization over the
+        # complete simulation makespan.
+        if (
+            total_capacity > 0
+            and self.simulation_clock > 0
+        ):
+            average_utilization = (
+                self.utilization_area
+                / (total_capacity * self.simulation_clock)
+            ) * 100
+        else:
+            average_utilization = 0.0
+
+        results["average_system_utilization_percent"] = (
+            average_utilization
         )
 
         results["simulation_duration"] = self.simulation_duration
-        results["generated_tasks"] = len(self.tasks)
         results["simulation_clock"] = self.simulation_clock
-        results["resource_balancing_rates"] = balancing_rates
+        results["generated_tasks"] = len(self.tasks)
 
         self.print_results(results)
 
         return results
 
-    def print_results(self, results):
-        """
-        Display simulation performance results.
-        """
+    # --------------------------------------------------
+    # RESULTS
+    # --------------------------------------------------
 
-        print("\n" + "=" * 55)
+    def print_results(self, results):
+
+        print("\n" + "=" * 58)
         print("             DPTARA SIMULATION RESULTS")
-        print("=" * 55)
+        print("=" * 58)
 
         print(
-            f"Simulation duration: "
+            f"Task generation window: "
             f"{results['simulation_duration']:.2f} seconds"
         )
 
         print(
-            f"Simulation clock: "
+            f"Simulation makespan: "
             f"{results['simulation_clock']:.4f} seconds"
         )
 
@@ -358,8 +416,8 @@ class DPTARASimulator:
         )
 
         print(
-            f"Final instantaneous utilization: "
-            f"{results['system_utilization_percent']:.2f}%"
+            f"Average system utilization: "
+            f"{results['average_system_utilization_percent']:.2f}%"
         )
 
-        print("=" * 55)
+        print("=" * 58)

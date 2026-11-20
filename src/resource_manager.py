@@ -70,9 +70,10 @@ class ResourceManager:
 
         return available
 
+
     def add_load(self, resource_id, load):
         """
-        Increase the current load of a resource.
+        Increase the current CPU load of a resource.
         """
 
         resource = self.get_resource(resource_id)
@@ -86,16 +87,24 @@ class ResourceManager:
         if load <= 0:
             raise ValueError("Load must be positive.")
 
-        if load > resource.available_capacity:
+        tolerance = 1e-10 * max(
+            1.0,
+            abs(resource.capacity),
+            abs(resource.current_load),
+            abs(load)
+        )
+
+        available = resource.available_capacity
+
+        if load > available + tolerance:
             raise ValueError("Insufficient resource capacity.")
 
-        resource.current_load += load
+        # Avoid exceeding capacity due to tiny rounding errors.
+        resource.current_load += min(load, available)
+
+
 
     def release_load(self, resource_id, load):
-        """
-        Release previously allocated resource capacity.
-        """
-
         resource = self.get_resource(resource_id)
 
         if resource is None:
@@ -104,10 +113,29 @@ class ResourceManager:
         if load <= 0:
             raise ValueError("Load must be positive.")
 
-        if load > resource.current_load:
-            raise ValueError("Cannot release more load than allocated.")
+        # Account for tiny floating-point representation errors.
+        tolerance = 1e-10 * max(
+            1.0,
+            abs(resource.capacity),
+            abs(resource.current_load),
+            abs(load)
+        )
 
-        resource.current_load -= load
+        if load > resource.current_load + tolerance:
+            raise ValueError(
+                f"Cannot release more load than allocated. "
+                f"Resource: {resource_id}, "
+                f"Available load: {resource.current_load}, "
+                f"Requested release: {load}"
+            )
+
+        remaining_load = resource.current_load - load
+
+        # Remove tiny floating-point residuals.
+        if abs(remaining_load) <= tolerance:
+            remaining_load = 0.0
+
+        resource.current_load = max(0.0, remaining_load)
 
     def get_resource_status(self):
         """
