@@ -77,13 +77,23 @@ class DPTARASimulator:
 
         # Completion events:
         # (completion_time, sequence_number, task, resource)
-        self.completion_events = []
+        # Unified event queue:
+        # (event_time, event_order, sequence, event_type, task, resource)
+        #
+        # Completion events use event_order = 0.
+        # Arrival events use event_order = 1.
+        # Therefore, completions are processed before arrivals
+        # when both occur at the same simulation time.
+
+        self.event_queue = []
+
+        # Tasks waiting for resource allocation.
+        self.waiting_tasks = []
+
         self.event_counter = itertools.count()
 
-        # Time-integrated CPU utilization
+        # Time-integrated CPU utilization.
         self.utilization_area = 0.0
-
-        print("DPTARA Simulator initialized successfully.")
 
     # --------------------------------------------------
     # RESOURCE INITIALIZATION
@@ -194,111 +204,129 @@ class DPTARASimulator:
 
         self.simulation_clock = next_time
 
+
     # --------------------------------------------------
-    # COMPLETION EVENT HANDLING
+    # EVENT HANDLING AND UTILIZATION
     # --------------------------------------------------
 
-    def _complete_next_event(self):
+    def _calculate_system_load(self):
 
-        completion_time, _, task, resource = heapq.heappop(
-            self.completion_events
+        total_capacity = sum(
+            resource.capacity for resource in self.resources
         )
 
-        self._record_utilization_interval(completion_time)
+        total_load = sum(
+            resource.current_load for resource in self.resources
+        )
 
-        # Preserve resource assignment for task analysis.
+        if total_capacity <= 0:
+            return 0.0
+
+        return total_load / total_capacity
+
+    def _record_utilization_interval(self, next_time):
+
+        elapsed_time = next_time - self.simulation_clock
+
+        if elapsed_time < 0:
+            raise ValueError("Simulation time cannot move backwards.")
+
+        current_load = sum(
+            resource.current_load for resource in self.resources
+        )
+
+        self.utilization_area += current_load * elapsed_time
+        self.simulation_clock = next_time
+
+    # --------------------------------------------------
+    # COMPLETION EVENT
+    # --------------------------------------------------
+
+    def _handle_completion(self, task, resource):
+
+        if task.status != "running":
+            raise ValueError(
+                f"Task {task.task_id} is not running."
+            )
+
         assigned_resource = task.assigned_resource
 
-        # Release the reserved CPU capacity.
         self.resource_allocator.release_task(task)
 
-        # Restore the resource ID after release.
+        # Preserve the resource ID for result analysis.
         task.assigned_resource = assigned_resource
 
         task.status = "completed"
 
-    def _advance_until(self, target_time):
-
-        while (
-            self.completion_events
-            and self.completion_events[0][0] <= target_time
-        ):
-            self._complete_next_event()
-
-        if target_time > self.simulation_clock:
-            self._record_utilization_interval(target_time)
-
     # --------------------------------------------------
-    # TASK PROCESSING
+    # TASK DISPATCHING
     # --------------------------------------------------
 
-    def process_task(self, task):
+    def _dispatch_waiting_tasks(self):
 
-        # Advance the clock to the task's arrival.
-        arrival_time = max(
-            task.arrival_time,
-            self.simulation_clock
-        )
+        while self.waiting_tasks:
 
-        self._advance_until(arrival_time)
+            # FIFO baseline: process the oldest waiting task first.
+            task = self.waiting_tasks[0]
 
-        # Calculate priority at the current dispatch time.
-        current_load = self._calculate_system_load()
-
-        task.priority = self.priority_model.calculate_priority(
-            task,
-            self.simulation_clock,
-            current_load
-        )
-
-        # Try allocation. If all suitable resources are busy,
-        # wait for the next completion event and retry.
-        selected_resource = None
-
-        while selected_resource is None:
-
-            selected_resource = self.resource_allocator.allocate_task(
-                task
-            )
-
-            if selected_resource is not None:
-                break
-
-            if not self.completion_events:
-                # No running task can free capacity.
-                # This task cannot currently be allocated.
-                break
-
-            # Wait until at least one task completes.
-            self._complete_next_event()
-
-            # The allocator marks failed allocations as unallocated.
-            # Reset status to allow another allocation attempt.
             task.status = "pending"
 
-        if selected_resource is None:
-            task.status = "unallocated"
-            return task
+            current_load = self._calculate_system_load()
 
-        # Execute using the allocated CPU demand.
-        self.task_executor.execute_task(
-            task,
-            selected_resource,
-            self.simulation_clock
-        )
-
-        # Schedule its future completion.
-        heapq.heappush(
-            self.completion_events,
-            (
-                task.completion_time,
-                next(self.event_counter),
+            task.priority = self.priority_model.calculate_priority(
                 task,
-                selected_resource
+                self.simulation_clock,
+                current_load
             )
-        )
 
-        return task
+            selected_resource = (
+                self.resource_allocator.allocate_task(task)
+            )
+
+            # No suitable resource is currently available.
+            # Keep this task at the front of the waiting queue.
+            if selected_resource is None:
+
+                task.status = "pending"
+                break
+
+            # Remove the task only after successful allocation.
+            self.waiting_tasks.pop(0)
+
+            self.task_executor.execute_task(
+                task,
+                selected_resource,
+                self.simulation_clock
+            )
+
+            # Schedule its completion event.
+            heapq.heappush(
+                self.event_queue,
+                (
+                    task.completion_time,
+                    0,
+                    next(self.event_counter),
+                    "completion",
+                    task,
+                    selected_resource
+                )
+            )
+
+    # --------------------------------------------------
+    # ARRIVAL EVENT
+    # --------------------------------------------------
+
+    def _handle_arrival(self, task):
+
+        if task.status != "pending":
+            raise ValueError(
+                f"Task {task.task_id} is not pending."
+            )
+
+        self.waiting_tasks.append(task)
+
+        # Try to dispatch waiting tasks immediately.
+        self._dispatch_waiting_tasks()
 
     # --------------------------------------------------
     # SIMULATION EXECUTION
@@ -314,17 +342,71 @@ class DPTARASimulator:
         if not self.tasks:
             self.generate_tasks()
 
-        # Process tasks in arrival order.
+        # Sort tasks by their arrival times.
         self.tasks.sort(
             key=lambda task: task.arrival_time
         )
 
-        for task in self.tasks:
-            self.process_task(task)
+        # Reset event-related state.
+        self.event_queue = []
+        self.waiting_tasks = []
+        self.event_counter = itertools.count()
+        self.simulation_clock = 0.0
+        self.utilization_area = 0.0
 
-        # Complete all tasks that are still running.
-        while self.completion_events:
-            self._complete_next_event()
+        # Schedule every task arrival in the event queue.
+        for task in self.tasks:
+
+            heapq.heappush(
+                self.event_queue,
+                (
+                    task.arrival_time,
+                    1,
+                    next(self.event_counter),
+                    "arrival",
+                    task,
+                    None
+                )
+            )
+
+        # Process events in chronological order.
+        while self.event_queue:
+
+            (
+                event_time,
+                _,
+                _,
+                event_type,
+                task,
+                resource
+            ) = heapq.heappop(self.event_queue)
+
+            # Account for utilization before changing resource load.
+            self._record_utilization_interval(event_time)
+
+            if event_type == "completion":
+
+                self._handle_completion(task, resource)
+
+                # A completed task may free capacity.
+                self._dispatch_waiting_tasks()
+
+            elif event_type == "arrival":
+
+                self._handle_arrival(task)
+
+            else:
+
+                raise ValueError(
+                    f"Unknown event type: {event_type}"
+                )
+
+        # No future events remain. Any tasks still waiting
+        # could not be allocated with the available resources.
+        for task in self.waiting_tasks:
+            task.status = "unallocated"
+
+        self.waiting_tasks.clear()
 
         # Calculate performance metrics.
         results = self.metrics.calculate_metrics(
@@ -336,17 +418,18 @@ class DPTARASimulator:
             resource.capacity for resource in self.resources
         )
 
-        # Time-weighted average utilization over the
-        # complete simulation makespan.
         if (
             total_capacity > 0
             and self.simulation_clock > 0
         ):
+
             average_utilization = (
                 self.utilization_area
                 / (total_capacity * self.simulation_clock)
             ) * 100
+
         else:
+
             average_utilization = 0.0
 
         results["average_system_utilization_percent"] = (
@@ -360,7 +443,6 @@ class DPTARASimulator:
         self.print_results(results)
 
         return results
-
 
 
     # --------------------------------------------------
