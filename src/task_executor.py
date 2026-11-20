@@ -12,7 +12,7 @@ class TaskExecutor:
 
     def execute_task(self, task, resource, current_time):
 
-        # Step 1: Validate task
+        # 1. Validate task
         if task.status != "allocated":
             raise ValueError("Task must be allocated before execution.")
 
@@ -22,13 +22,10 @@ class TaskExecutor:
         if task.workload_mi is None or task.workload_mi <= 0:
             raise ValueError("Invalid computational workload.")
 
-        if (
-            task.cpu_demand_mips is None
-            or task.cpu_demand_mips <= 0
-        ):
+        if task.cpu_demand_mips is None or task.cpu_demand_mips <= 0:
             raise ValueError("Invalid allocated CPU demand.")
 
-        # Step 2: Validate resource
+        # 2. Validate resource
         if resource.status != "active":
             raise ValueError("Resource is not active.")
 
@@ -38,27 +35,24 @@ class TaskExecutor:
         if task.cpu_demand_mips > resource.processing_speed_mips:
             raise ValueError("Allocated CPU demand exceeds processing speed.")
 
+        if resource.network_latency_ms < 0:
+            raise ValueError("Network latency cannot be negative.")
+
         if current_time < task.arrival_time:
             raise ValueError("Execution cannot precede task arrival.")
 
-        # Step 3: Calculate computational execution time
-        execution_time = (
-            task.workload_mi / task.cpu_demand_mips
-        )
+        # 3. Calculate computational execution time
+        execution_time = task.workload_mi / task.cpu_demand_mips
 
-        # Step 4: Calculate network delay
+        # 4. Calculate network delay
         network_delay = resource.network_latency_ms / 1000.0
 
-        # Step 5: Calculate execution timestamps
+        # 5. Calculate execution timestamps
         task.start_time = current_time + network_delay
-
         task.execution_time = execution_time
+        task.completion_time = task.start_time + execution_time
 
-        task.completion_time = (
-            task.start_time + execution_time
-        )
-
-        # Step 6: Calculate energy consumption
+        # 6. Calculate energy consumption
         from .energy_manager import EnergyManager
 
         energy_manager = EnergyManager()
@@ -69,7 +63,8 @@ class TaskExecutor:
             task.completion_time
         )
 
-        # Step 7: Update task status
-        task.status = "completed"
+        # 7. Task is now running, not completed.
+        # Completion is recorded when its event is processed.
+        task.status = "running"
 
         return task

@@ -287,10 +287,6 @@ class DPTARASimulator:
             self.simulation_clock
         )
 
-        # The executor marks the task completed immediately.
-        # Change it to running until its completion event occurs.
-        task.status = "running"
-
         # Schedule its future completion.
         heapq.heappush(
             self.completion_events,
