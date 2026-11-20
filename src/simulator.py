@@ -401,6 +401,36 @@ class DPTARASimulator:
         )
 
         print(
+            f"Tasks completed on time: "
+            f"{results['on_time_tasks']}"
+        )
+
+        print(
+            f"Late completed tasks: "
+            f"{results['late_completed_tasks']}"
+        )
+
+        print(
+            f"Deadline miss rate: "
+            f"{results['deadline_miss_rate_percent']:.2f}%"
+        )
+
+        print(
+            f"Deadline met rate: "
+            f"{results['deadline_met_rate_percent']:.2f}%"
+        )
+
+        print(
+            f"Average deadline violation: "
+            f"{results['average_deadline_violation']:.4f} seconds"
+        )
+
+        print(
+            f"Unallocated tasks: "
+            f"{results['unallocated_tasks']}"
+        )
+
+        print(
             f"Average latency: "
             f"{results['average_latency']:.4f} seconds"
         )
