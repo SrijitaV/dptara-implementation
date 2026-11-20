@@ -40,6 +40,20 @@ def main():
 
     results = balancer.calculate_all_balancing_rates(resources)
 
+    # Validate Algorithm 3 balancing-rate calculations
+    expected_rates = {
+        "E1": 55.5555555556,
+        "E2": 55.5555555556,
+        "C1": 11.1111111111
+    }
+
+    for resource_id, expected in expected_rates.items():
+        assert abs(results[resource_id] - expected) < 0.01, (
+            f"Incorrect balancing rate for {resource_id}"
+        )
+
+    print("\nAlgorithm 3 formula validation: PASSED")
+
     for resource in resources:
 
         rate = results[resource.resource_id]

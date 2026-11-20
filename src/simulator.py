@@ -95,6 +95,10 @@ class DPTARASimulator:
         # Time-integrated CPU utilization.
         self.utilization_area = 0.0
 
+        # Time-integrated resource balancing rate.
+        self.balancing_rate_area = 0.0
+        self.balancing_observation_time = 0.0
+
     # --------------------------------------------------
     # RESOURCE INITIALIZATION
     # --------------------------------------------------
@@ -187,10 +191,9 @@ class DPTARASimulator:
         if total_capacity <= 0:
             return 0.0
 
-        return total_load / total_capacity
+        return total_load / total_capacity    
 
     
-
     def _record_utilization_interval(self, next_time):
 
         elapsed_time = next_time - self.simulation_clock
@@ -216,15 +219,35 @@ class DPTARASimulator:
                 utilization
             )
 
-        # Update time-weighted system utilization.
+        # Calculate total current resource load.
         current_load = sum(
             resource.current_load for resource in self.resources
         )
 
+        # Record balancing rates only when resources are carrying load.
+        if elapsed_time > 0 and current_load > 0:
+
+            balancing_rates = (
+                self.load_balancer.calculate_all_balancing_rates(
+                    self.resources
+                )
+            )
+
+            average_balancing_rate = (
+                sum(balancing_rates.values()) /
+                len(balancing_rates)
+            )
+
+            self.balancing_rate_area += (
+                average_balancing_rate * elapsed_time
+            )
+
+            self.balancing_observation_time += elapsed_time
+
+        # Update time-weighted system utilization.
         self.utilization_area += current_load * elapsed_time
 
         self.simulation_clock = next_time
-
 
     # --------------------------------------------------
     # COMPLETION EVENT
