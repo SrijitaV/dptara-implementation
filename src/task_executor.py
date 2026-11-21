@@ -59,7 +59,8 @@ class TaskExecutor:
                 "Execution cannot precede task arrival."
             )
 
-        # 3. Calculate actual execution time.
+        # 3. Calculate computational execution time
+        # Based on the selected resource's processing capability.
         execution_time = (
             task.workload_mi / resource.processing_speed_mips
         )

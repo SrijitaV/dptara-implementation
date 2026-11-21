@@ -1,4 +1,6 @@
 
+import heapq
+
 from src.models.entities import Task, Resource
 from src.simulator import DPTARASimulator
 
@@ -17,7 +19,7 @@ def main():
 
     print("\n1. Simulator initialization: PASSED")
 
-    # 2. Register one controlled edge resource
+    # 2. Register a controlled edge resource
     resource = Resource(
         resource_id="E1",
         resource_type="edge",
@@ -43,17 +45,17 @@ def main():
         task_type="normal"
     )
 
-    # 4. Submit task to the event-driven simulator
-    simulator.process_task(task)
+    # 4. Submit task through the current arrival handler
+    simulator._handle_arrival(task)
 
     assert task.status == "running"
     assert task.assigned_resource == "E1"
     assert task.completion_time is not None
-    assert len(simulator.completion_events) == 1
+    assert len(simulator.event_queue) == 1
 
     print("3. Task allocation and execution start: PASSED")
 
-    # 5. Verify CPU reservation during execution
+    # 5. Verify CPU reservation
     assert resource.current_load > 0
     assert resource.current_load <= resource.capacity
 
@@ -64,11 +66,26 @@ def main():
         f"({reserved_load:.2f} MIPS)"
     )
 
-    # 6. Process the completion event
-    simulator._complete_next_event()
+    # 6. Retrieve and process the completion event
+    event = heapq.heappop(simulator.event_queue)
+
+    (
+        event_time,
+        _,
+        _,
+        event_type,
+        event_task,
+        event_resource
+    ) = event
+
+    assert event_type == "completion"
+    assert event_task is task
+
+    simulator._record_utilization_interval(event_time)
+    simulator._handle_completion(event_task, event_resource)
 
     assert task.status == "completed"
-    assert len(simulator.completion_events) == 0
+    assert len(simulator.event_queue) == 0
 
     print("5. Task completion event: PASSED")
 

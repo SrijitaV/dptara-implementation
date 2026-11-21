@@ -385,6 +385,7 @@ class DPTARASimulator:
     # SIMULATION EXECUTION
     # --------------------------------------------------
 
+
     def run(self):
 
         print("\nStarting event-driven DPTARA simulation...")
@@ -395,7 +396,6 @@ class DPTARASimulator:
         if not self.tasks:
             self.generate_tasks()
 
-        # Sort tasks by their arrival times.
         self.tasks.sort(
             key=lambda task: task.arrival_time
         )
@@ -411,9 +411,8 @@ class DPTARASimulator:
         self.balancing_rate_area = 0.0
         self.balancing_observation_time = 0.0
 
-        # Schedule every task arrival in the event queue.
+        # Schedule task arrivals.
         for task in self.tasks:
-
             heapq.heappush(
                 self.event_queue,
                 (
@@ -426,7 +425,7 @@ class DPTARASimulator:
                 )
             )
 
-        # Process events in chronological order.
+        # Process events chronologically.
         while self.event_queue:
 
             (
@@ -438,14 +437,11 @@ class DPTARASimulator:
                 resource
             ) = heapq.heappop(self.event_queue)
 
-            # Account for utilization before changing resource load.
             self._record_utilization_interval(event_time)
 
             if event_type == "completion":
 
                 self._handle_completion(task, resource)
-
-                # A completed task may free capacity.
                 self._dispatch_waiting_tasks()
 
             elif event_type == "arrival":
@@ -458,27 +454,25 @@ class DPTARASimulator:
                     f"Unknown event type: {event_type}"
                 )
 
-        # No future events remain. Any tasks still waiting
-        # could not be allocated with the available resources.
+        # Mark remaining waiting tasks as unallocated.
         for task in self.waiting_tasks:
             task.status = "unallocated"
 
         self.waiting_tasks.clear()
 
-        # Calculate performance metrics.
+        # Calculate task performance metrics.
         results = self.metrics.calculate_metrics(
             self.tasks,
             self.resources
         )
 
+        # Calculate time-weighted average system utilization.
         total_capacity = sum(
-            resource.capacity for resource in self.resources
+            resource.capacity
+            for resource in self.resources
         )
 
-        if (
-            total_capacity > 0
-            and self.simulation_clock > 0
-        ):
+        if total_capacity > 0 and self.simulation_clock > 0:
 
             average_utilization = (
                 self.utilization_area
@@ -486,18 +480,16 @@ class DPTARASimulator:
             ) * 100
 
         else:
-
             average_utilization = 0.0
 
-            results["average_system_utilization_percent"] = (
-                average_utilization
-            )
+        # Store utilization results OUTSIDE the if/else.
+        results["average_system_utilization_percent"] = (
+            average_utilization
+        )
 
-            # Keep the general utilization key consistent
-            # with the time-weighted simulation result.
-            results["system_utilization_percent"] = (
-                average_utilization
-            )
+        results["system_utilization_percent"] = (
+            average_utilization
+        )
 
         # Calculate time-weighted average balancing rate.
         if self.balancing_observation_time > 0:
@@ -508,7 +500,6 @@ class DPTARASimulator:
             )
 
         else:
-
             average_balancing_rate = 0.0
 
         results["average_balancing_rate_percent"] = (
@@ -522,7 +513,6 @@ class DPTARASimulator:
         self.print_results(results)
 
         return results
-
 
     # --------------------------------------------------
     # RESULTS
@@ -656,7 +646,7 @@ class DPTARASimulator:
 
         print(
             f"Average system utilization: "
-            f"{results['average_system_utilization_percent']:.2f}%"
+            f"{results['system_utilization_percent']:.2f}%"
         )
 
         print(
