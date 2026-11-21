@@ -401,6 +401,10 @@ class DPTARASimulator:
         self.simulation_clock = 0.0
         self.utilization_area = 0.0
 
+        # Reset load-balancing measurements.
+        self.balancing_rate_area = 0.0
+        self.balancing_observation_time = 0.0
+
         # Schedule every task arrival in the event queue.
         for task in self.tasks:
 
@@ -481,6 +485,22 @@ class DPTARASimulator:
 
         results["average_system_utilization_percent"] = (
             average_utilization
+        )
+
+        # Calculate time-weighted average balancing rate.
+        if self.balancing_observation_time > 0:
+
+            average_balancing_rate = (
+                self.balancing_rate_area
+                / self.balancing_observation_time
+            )
+
+        else:
+
+            average_balancing_rate = 0.0
+
+        results["average_balancing_rate_percent"] = (
+            average_balancing_rate
         )
 
         results["simulation_duration"] = self.simulation_duration
@@ -625,6 +645,11 @@ class DPTARASimulator:
         print(
             f"Average system utilization: "
             f"{results['average_system_utilization_percent']:.2f}%"
+        )
+
+        print(
+            f"Average load balancing rate: "
+            f"{results['average_balancing_rate_percent']:.2f}%"
         )
 
         print("\n" + "=" * 58)
