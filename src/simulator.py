@@ -489,9 +489,15 @@ class DPTARASimulator:
 
             average_utilization = 0.0
 
-        results["average_system_utilization_percent"] = (
-            average_utilization
-        )
+            results["average_system_utilization_percent"] = (
+                average_utilization
+            )
+
+            # Keep the general utilization key consistent
+            # with the time-weighted simulation result.
+            results["system_utilization_percent"] = (
+                average_utilization
+            )
 
         # Calculate time-weighted average balancing rate.
         if self.balancing_observation_time > 0:

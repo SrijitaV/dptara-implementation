@@ -1,18 +1,15 @@
 
 class TaskExecutor:
     """
-    Executes allocated tasks using the processing-time model
-    specified in DPTARA Equations (6) and (9).
+    Executes allocated tasks using computational workload
+    and the selected resource's processing speed.
 
-    Computing time = task size / resource processing capacity.
-
-    The resource's configured network latency is treated as
-    the total transmission delay in this implementation.
+    Execution time = workload (MI) / processing speed (MIPS).
     """
 
     def execute_task(self, task, resource, current_time):
 
-        # 1. Validate task state and assignment.
+        # 1. Validate task.
         if task.status != "allocated":
             raise ValueError(
                 "Task must be allocated before execution."
@@ -23,8 +20,20 @@ class TaskExecutor:
                 "Task is not assigned to this resource."
             )
 
-        if task.size_mb <= 0:
-            raise ValueError("Task size must be positive.")
+        if task.workload_mi is None or task.workload_mi <= 0:
+            raise ValueError("Invalid computational workload.")
+
+        if (
+            task.cpu_demand_mips is None
+            or task.cpu_demand_mips <= 0
+        ):
+            raise ValueError("Invalid allocated CPU demand.")
+
+        if (
+            task.allocated_load is None
+            or task.allocated_load <= 0
+        ):
+            raise ValueError("Invalid reserved CPU load.")
 
         # 2. Validate resource.
         if resource.status != "active":
@@ -32,7 +41,12 @@ class TaskExecutor:
 
         if resource.processing_speed_mips <= 0:
             raise ValueError(
-                "Invalid resource processing capacity."
+                "Invalid resource processing speed."
+            )
+
+        if task.cpu_demand_mips > resource.processing_speed_mips:
+            raise ValueError(
+                "CPU demand exceeds resource processing speed."
             )
 
         if resource.network_latency_ms < 0:
@@ -45,17 +59,18 @@ class TaskExecutor:
                 "Execution cannot precede task arrival."
             )
 
-        # 3. Calculate computing time independently of deadline.
+        # 3. Calculate actual execution time.
         execution_time = (
-            task.size_mb / resource.processing_speed_mips
+            task.workload_mi / resource.processing_speed_mips
         )
 
-        # 4. Calculate transmission delay.
+        # 4. Calculate network delay.
         network_delay = resource.network_latency_ms / 1000.0
 
-        # 5. Calculate execution timestamps.
+        # 5. Calculate timestamps.
         task.start_time = current_time + network_delay
         task.execution_time = execution_time
+
         task.completion_time = (
             task.start_time + execution_time
         )
@@ -73,7 +88,8 @@ class TaskExecutor:
             )
         )
 
-        # 7. Completion is handled by the simulator's event queue.
+        # 7. Mark task as running.
+        # Simulator will mark it completed when its event is processed.
         task.status = "running"
 
         return task
