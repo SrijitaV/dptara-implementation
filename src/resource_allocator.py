@@ -21,9 +21,9 @@ class ResourceAllocator:
     def __init__(
         self,
         resource_manager,
-        instructions_per_mb=1000.0
+        instructions_per_mb=1000.0,
+        load_predictor=None
     ):
-
         if not isinstance(resource_manager, ResourceManager):
             raise TypeError("Expected a ResourceManager object.")
 
@@ -32,12 +32,10 @@ class ResourceAllocator:
 
         self.resource_manager = resource_manager
         self.instructions_per_mb = instructions_per_mb
+        self.load_predictor = load_predictor
 
     def calculate_cpu_demand(self, task, resource=None):
-        """
-        Calculate CPU demand after accounting for
-        the selected resource's network latency.
-        """
+        """Calculate deadline-aware CPU demand."""
 
         if task.size_mb <= 0:
             raise ValueError("Task size must be positive.")
@@ -55,18 +53,24 @@ class ResourceAllocator:
         if available_compute_time <= 0:
             return None
 
-        workload = (
-            task.size_mb * self.instructions_per_mb
-        )
-
+        workload = task.size_mb * self.instructions_per_mb
         cpu_demand = workload / available_compute_time
 
         return workload, cpu_demand
 
-    def _find_least_loaded_resource(self, resources, task):
+    def _find_least_loaded_resource(
+        self,
+        resources,
+        task,
+        current_time=0.0
+    ):
         """
-        Find the least-utilized resource that can
-        accommodate the deadline-aware CPU demand.
+        Find an eligible resource with the lowest projected
+        utilization.
+
+        If a load predictor is connected and has observations
+        for a resource, its predicted utilization is used.
+        Otherwise, current utilization is used.
         """
 
         eligible_resources = []
@@ -83,20 +87,50 @@ class ResourceAllocator:
 
             workload, cpu_demand = demand_details
 
-            if resource.available_capacity >= cpu_demand:
-                eligible_resources.append(
-                    (resource, workload, cpu_demand)
+            # Check actual available capacity first.
+            if resource.available_capacity < cpu_demand:
+                continue
+
+            predicted_utilization = resource.utilization
+
+            # Use prediction only when history exists.
+            if (
+                self.load_predictor is not None
+                and resource.resource_id in self.load_predictor.history
+                and self.load_predictor.history[resource.resource_id]
+            ):
+                future_time = current_time + task.deadline
+
+                predicted_utilization = (
+                    self.load_predictor.predict_load(
+                        resource.resource_id,
+                        future_time
+                    )
                 )
+
+            projected_utilization = (
+                predicted_utilization
+                + cpu_demand / resource.capacity
+            )
+
+            eligible_resources.append(
+                (
+                    resource,
+                    workload,
+                    cpu_demand,
+                    projected_utilization
+                )
+            )
 
         if not eligible_resources:
             return None
 
         return min(
             eligible_resources,
-            key=lambda item: item[0].utilization
+            key=lambda item: item[3]
         )
 
-    def allocate_task(self, task):
+    def allocate_task(self, task, current_time=0.0):
         """
         Hierarchical allocation:
             1. Local resources
@@ -135,7 +169,8 @@ class ResourceAllocator:
 
             selected = self._find_least_loaded_resource(
                 group,
-                task
+                task,
+                current_time
             )
 
             if selected is not None:
@@ -145,7 +180,12 @@ class ResourceAllocator:
             task.status = "unallocated"
             return None
 
-        selected_resource, workload, cpu_demand = selected
+        (
+            selected_resource,
+            workload,
+            cpu_demand,
+            _
+        ) = selected
 
         self.resource_manager.add_load(
             selected_resource.resource_id,
@@ -160,9 +200,7 @@ class ResourceAllocator:
         return selected_resource
 
     def release_task(self, task):
-        """
-        Release CPU capacity reserved for a task.
-        """
+        """Release CPU capacity reserved for a task."""
 
         if task.assigned_resource is None:
             raise ValueError("Task has no assigned resource.")
