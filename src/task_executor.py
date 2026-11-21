@@ -62,7 +62,7 @@ class TaskExecutor:
         # 3. Calculate computational execution time
         # Based on the selected resource's processing capability.
         execution_time = (
-            task.workload_mi / resource.processing_speed_mips
+            task.workload_mi / task.cpu_demand_mips
         )
 
         # 4. Calculate network delay.

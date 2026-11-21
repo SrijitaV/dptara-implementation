@@ -33,7 +33,13 @@ class ResourceAllocator:
         self.instructions_per_mb = instructions_per_mb
         self.load_predictor = load_predictor
 
-    def calculate_cpu_demand(self, task, resource=None):
+
+    def calculate_cpu_demand(
+        self,
+        task,
+        resource=None,
+        current_time=None
+    ):
         """Calculate workload and minimum CPU demand."""
 
         if task.size_mb <= 0:
@@ -42,27 +48,34 @@ class ResourceAllocator:
         if task.deadline <= 0:
             raise ValueError("Task deadline must be positive.")
 
+        if current_time is None:
+            current_time = task.arrival_time
+
         network_delay = 0.0
 
         if resource is not None:
             network_delay = resource.network_latency_ms / 1000.0
 
-        available_compute_time = task.deadline - network_delay
+        deadline_time = task.arrival_time + task.deadline
+
+        available_compute_time = (
+            deadline_time - current_time - network_delay
+        )
 
         if available_compute_time <= 0:
             return None
 
         workload = task.size_mb * self.instructions_per_mb
-
         cpu_demand = workload / available_compute_time
 
         return workload, cpu_demand
+
 
     def _find_least_loaded_resource(
         self,
         resources,
         task,
-        current_time=0.0
+        current_time=None
     ):
         """Find the eligible resource with the lowest projected load."""
 
@@ -74,10 +87,10 @@ class ResourceAllocator:
                 continue
 
             demand_details = self.calculate_cpu_demand(
-                task,
-                resource
-            )
-
+            task,
+            resource,
+            current_time
+        )
             if demand_details is None:
                 continue
 
