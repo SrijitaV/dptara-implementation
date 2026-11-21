@@ -160,22 +160,45 @@ class DPTARASimulator:
     # TASK GENERATION
     # --------------------------------------------------
 
+
     def generate_tasks(
         self,
         task_type="normal",
-        original_priority=1.0
+        original_priority=1.0,
+        task_profiles=None
     ):
+        """
+        Generate tasks using the configured task profiles.
+
+        Task profiles allow different task categories
+        and original priorities to be sampled.
+        """
 
         self.tasks = self.task_generator.generate_tasks(
             duration_seconds=self.simulation_duration,
             task_type=task_type,
-            original_priority=original_priority
+            original_priority=original_priority,
+            task_profiles=task_profiles
         )
 
         print("\nTask generation completed.")
         print(f"Generated tasks: {len(self.tasks)}")
 
+        if task_profiles is not None:
+            print("\nGenerated task category distribution:")
+
+            category_counts = {}
+
+            for task in self.tasks:
+                category_counts[task.task_type] = (
+                    category_counts.get(task.task_type, 0) + 1
+                )
+
+            for category, count in sorted(category_counts.items()):
+                print(f"{category}: {count}")
+
         return self.tasks
+
 
     # --------------------------------------------------
     # SYSTEM UTILIZATION
