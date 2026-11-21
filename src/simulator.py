@@ -27,79 +27,79 @@ class DPTARASimulator:
     """
 
 
-def __init__(
-    self,
-    simulation_duration=10,
-    arrival_rate=5.0,
-    seed=42
-):
+    def __init__(
+        self,
+        simulation_duration=10,
+        arrival_rate=5.0,
+        seed=42
+    ):
 
-    if simulation_duration <= 0:
-        raise ValueError("Simulation duration must be positive.")
+        if simulation_duration <= 0:
+            raise ValueError("Simulation duration must be positive.")
 
-    if arrival_rate <= 0:
-        raise ValueError("Arrival rate must be positive.")
+        if arrival_rate <= 0:
+            raise ValueError("Arrival rate must be positive.")
 
-    self.simulation_duration = simulation_duration
-    self.arrival_rate = arrival_rate
-    self.seed = seed
+        self.simulation_duration = simulation_duration
+        self.arrival_rate = arrival_rate
+        self.seed = seed
 
-    self.rng = random.Random(seed)
+        self.rng = random.Random(seed)
 
-    self.task_generator = TaskGenerator(
-        arrival_rate=arrival_rate,
-        seed=seed
-    )
+        self.task_generator = TaskGenerator(
+            arrival_rate=arrival_rate,
+            seed=seed
+        )
 
-    # Initialize resource manager exactly once.
-    self.resource_manager = ResourceManager()
+        # Initialize resource manager exactly once.
+        self.resource_manager = ResourceManager()
 
-    # Initialize predictor before allocator.
-    self.load_predictor = LoadPredictor()
+        # Initialize predictor before allocator.
+        self.load_predictor = LoadPredictor()
 
-    # Connect predictor to allocator.
-    self.resource_allocator = ResourceAllocator(
-        self.resource_manager,
-        load_predictor=self.load_predictor
-    )
+        # Connect predictor to allocator.
+        self.resource_allocator = ResourceAllocator(
+            self.resource_manager,
+            load_predictor=self.load_predictor
+        )
 
-    self.task_executor = TaskExecutor()
+        self.task_executor = TaskExecutor()
 
-    self.priority_model = DynamicPriorityModel(
-        alpha=1.0,
-        beta=1.0,
-        gamma=1.0
-    )
+        self.priority_model = DynamicPriorityModel(
+            alpha=1.0,
+            beta=1.0,
+            gamma=1.0
+        )
 
-    self.energy_manager = EnergyManager()
-    self.load_balancer = LoadBalancer()
-    self.metrics = Metrics()
+        self.energy_manager = EnergyManager()
+        self.load_balancer = LoadBalancer()
+        self.metrics = Metrics()
 
-    self.tasks = []
-    self.resources = []
+        self.tasks = []
+        self.resources = []
 
-    # Simulation clock.
-    self.simulation_clock = 0.0
+        # Simulation clock.
+        self.simulation_clock = 0.0
 
-    # Unified event queue:
-    # (event_time, event_order, sequence, event_type, task, resource)
-    #
-    # Completion events: event_order = 0
-    # Arrival events: event_order = 1
+        # Unified event queue:
+        # (event_time, event_order, sequence, event_type, task, resource)
+        #
+        # Completion events: event_order = 0
+        # Arrival events: event_order = 1
 
-    self.event_queue = []
+        self.event_queue = []
 
-    # Tasks waiting for allocation.
-    self.waiting_tasks = []
+        # Tasks waiting for allocation.
+        self.waiting_tasks = []
 
-    self.event_counter = itertools.count()
+        self.event_counter = itertools.count()
 
-    # Time-integrated CPU utilization.
-    self.utilization_area = 0.0
+        # Time-integrated CPU utilization.
+        self.utilization_area = 0.0
 
-    # Time-integrated load-balancing rate.
-    self.balancing_rate_area = 0.0
-    self.balancing_observation_time = 0.0
+        # Time-integrated load-balancing rate.
+        self.balancing_rate_area = 0.0
+        self.balancing_observation_time = 0.0
 
 
     # --------------------------------------------------
