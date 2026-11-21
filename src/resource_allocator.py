@@ -13,8 +13,7 @@ class ResourceAllocator:
     Minimum CPU demand:
         cpu_demand_mips = workload_mi / available_compute_time
 
-    The reserved CPU load and resource capacity are both measured
-    in MIPS.
+    CPU demand and resource capacity are measured in MIPS.
     """
 
     def __init__(
@@ -32,7 +31,6 @@ class ResourceAllocator:
         self.resource_manager = resource_manager
         self.instructions_per_mb = instructions_per_mb
         self.load_predictor = load_predictor
-
 
     def calculate_cpu_demand(
         self,
@@ -70,7 +68,6 @@ class ResourceAllocator:
 
         return workload, cpu_demand
 
-
     def _find_least_loaded_resource(
         self,
         resources,
@@ -78,6 +75,9 @@ class ResourceAllocator:
         current_time=None
     ):
         """Find the eligible resource with the lowest projected load."""
+
+        if current_time is None:
+            current_time = task.arrival_time
 
         eligible_resources = []
 
@@ -87,10 +87,11 @@ class ResourceAllocator:
                 continue
 
             demand_details = self.calculate_cpu_demand(
-            task,
-            resource,
-            current_time
-        )
+                task,
+                resource,
+                current_time
+            )
+
             if demand_details is None:
                 continue
 
@@ -100,8 +101,7 @@ class ResourceAllocator:
             if resource.available_capacity < cpu_demand:
                 continue
 
-            # Use processing speed when configured.
-            # Otherwise, fall back to the resource's CPU capacity.
+            # Check processing speed.
             processing_capacity = (
                 resource.processing_speed_mips
                 if resource.processing_speed_mips > 0
@@ -119,7 +119,7 @@ class ResourceAllocator:
                 and resource.resource_id in self.load_predictor.history
                 and self.load_predictor.history[resource.resource_id]
             ):
-                future_time = current_time + task.deadline
+                future_time = task.arrival_time + task.deadline
 
                 predicted_utilization = (
                     self.load_predictor.predict_load(
@@ -150,7 +150,7 @@ class ResourceAllocator:
             key=lambda item: item[3]
         )
 
-    def allocate_task(self, task, current_time=0.0):
+    def allocate_task(self, task, current_time=None):
         """
         Hierarchical allocation:
             1. Local resources
@@ -163,6 +163,9 @@ class ResourceAllocator:
 
         if task.status != "pending":
             raise ValueError("Only pending tasks can be allocated.")
+
+        if current_time is None:
+            current_time = task.arrival_time
 
         all_resources = (
             self.resource_manager.get_available_resources()
