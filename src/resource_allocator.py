@@ -38,32 +38,37 @@ class ResourceAllocator:
         resource=None,
         current_time=None
     ):
-        """Calculate workload and minimum CPU demand."""
+        """
+        Calculate CPU demand using the remaining task deadline.
 
-        if task.size_mb <= 0:
-            raise ValueError("Task size must be positive.")
+        The task deadline is treated as a duration from arrival.
+        """
 
-        if task.deadline <= 0:
-            raise ValueError("Task deadline must be positive.")
+        if task.size_mb <= 0 or task.deadline <= 0:
+            raise ValueError("Invalid task size or deadline.")
 
         if current_time is None:
             current_time = task.arrival_time
+
+        if current_time < task.arrival_time:
+            raise ValueError("Current time cannot precede task arrival.")
 
         network_delay = 0.0
 
         if resource is not None:
             network_delay = resource.network_latency_ms / 1000.0
 
-        deadline_time = task.arrival_time + task.deadline
+        absolute_deadline = task.arrival_time + task.deadline
 
-        available_compute_time = (
-            deadline_time - current_time - network_delay
-        )
+        remaining_time = absolute_deadline - current_time
 
-        if available_compute_time <= 0:
-            return None
+        available_compute_time = remaining_time - network_delay
 
         workload = task.size_mb * self.instructions_per_mb
+
+        if available_compute_time <= 0:
+            return workload, float("inf")
+
         cpu_demand = workload / available_compute_time
 
         return workload, cpu_demand
