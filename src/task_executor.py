@@ -1,10 +1,10 @@
 
 class TaskExecutor:
     """
-    Executes allocated tasks using computational workload
-    and the selected resource's processing speed.
+    Executes an allocated task using the selected resource.
 
-    Execution time = workload (MI) / processing speed (MIPS).
+    Computing time follows the paper:
+        T_computing = task size / resource processing capacity
     """
 
     def execute_task(self, task, resource, current_time):
@@ -20,20 +20,11 @@ class TaskExecutor:
                 "Task is not assigned to this resource."
             )
 
-        if task.workload_mi is None or task.workload_mi <= 0:
-            raise ValueError("Invalid computational workload.")
+        if task.size_mb <= 0:
+            raise ValueError("Invalid task size.")
 
-        if (
-            task.cpu_demand_mips is None
-            or task.cpu_demand_mips <= 0
-        ):
-            raise ValueError("Invalid allocated CPU demand.")
-
-        if (
-            task.allocated_load is None
-            or task.allocated_load <= 0
-        ):
-            raise ValueError("Invalid reserved CPU load.")
+        if task.allocated_load is None or task.allocated_load <= 0:
+            raise ValueError("Invalid reserved resource load.")
 
         # 2. Validate resource.
         if resource.status != "active":
@@ -42,11 +33,6 @@ class TaskExecutor:
         if resource.processing_speed_mips <= 0:
             raise ValueError(
                 "Invalid resource processing speed."
-            )
-
-        if task.cpu_demand_mips > resource.processing_speed_mips:
-            raise ValueError(
-                "CPU demand exceeds resource processing speed."
             )
 
         if resource.network_latency_ms < 0:
@@ -59,10 +45,9 @@ class TaskExecutor:
                 "Execution cannot precede task arrival."
             )
 
-        # 3. Calculate computational execution time
-        # Based on the selected resource's processing capability.
+        # 3. Calculate computing time using the paper's equation.
         execution_time = (
-            task.workload_mi / task.cpu_demand_mips
+            task.size_mb / resource.processing_speed_mips
         )
 
         # 4. Calculate network delay.
@@ -71,7 +56,6 @@ class TaskExecutor:
         # 5. Calculate timestamps.
         task.start_time = current_time + network_delay
         task.execution_time = execution_time
-
         task.completion_time = (
             task.start_time + execution_time
         )
@@ -90,7 +74,6 @@ class TaskExecutor:
         )
 
         # 7. Mark task as running.
-        # Simulator will mark it completed when its event is processed.
         task.status = "running"
 
         return task
