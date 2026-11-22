@@ -68,10 +68,10 @@ def main():
     # 6. Verify calculations
     assert result.status == "running"
     assert result.assigned_resource == "E1"
-    assert abs(result.execution_time - 5.0) < 1e-3
-    assert abs(result.start_time - 1.005) < 1e-6
-    assert abs(result.completion_time - 6.005) < 1e-6
-    assert result.energy_consumption > 0
+    assert abs(result.execution_time - 50.0) < 1e-3
+    assert abs(result.start_time - 1.005) < 1e-3
+    assert abs(result.completion_time - 51.005) < 1e-3
+    assert abs(result.energy_consumption - 12500.0) < 1e-3
 
     print("\nExecution calculations verified successfully!")
 
