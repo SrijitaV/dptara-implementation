@@ -64,16 +64,15 @@ def main():
     assert resource2 is not None
     assert task2.status == "allocated"
 
-    # The least-utilized resource should be selected.
     assert resource1.resource_id != resource2.resource_id
 
     print(f"3. Task 2 allocated to {resource2.resource_id}: PASSED")
 
-    # 4. Verify simultaneous CPU reservations
-    assert edge1.current_load == 200
-    assert edge2.current_load == 200
+    # 4. Verify simultaneous allocation loads
+    assert edge1.current_load == 2
+    assert edge2.current_load == 2
 
-    print("4. Simultaneous CPU reservations: PASSED")
+    print("4. Simultaneous resource allocation loads: PASSED")
 
     # 5. Verify capacity limits
     for resource in manager.get_all_resources():
@@ -88,10 +87,10 @@ def main():
     assert edge1.current_load == 0
     assert edge2.current_load == 0
 
-    print("6. CPU load release: PASSED")
+    print("6. Resource load release: PASSED")
 
     # 7. Test allocation failure
-    task3 = create_task(3, 12, 10)
+    task3 = create_task(3, 1001, 10)
 
     resource3 = allocator.allocate_task(task3)
 
