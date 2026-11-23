@@ -16,17 +16,7 @@ from .energy_manager import EnergyManager
 from .load_balancer import LoadBalancer
 from .metrics import Metrics
 
-
 class DPTARASimulator:
-    """
-    Event-driven DPTARA simulation controller.
-
-    Tasks can execute concurrently on different resources.
-    CPU allocations remain reserved until task completion.
-
-    This is an initial event-driven implementation.
-    """
-
 
     def __init__(
         self,
@@ -54,6 +44,7 @@ class DPTARASimulator:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
 
         self.algorithm = algorithm
+
         self.strategy = (
             None if algorithm == "DPTARA"
             else get_strategy(algorithm)
@@ -66,13 +57,13 @@ class DPTARASimulator:
             seed=seed
         )
 
-        # Initialize resource manager exactly once.
+        # Initialize resource manager.
         self.resource_manager = ResourceManager()
 
         # Initialize predictor before allocator.
         self.load_predictor = LoadPredictor()
 
-        # Connect predictor to allocator.
+        # Connect predictor and selected strategy to allocator.
         self.resource_allocator = ResourceAllocator(
             self.resource_manager,
             load_predictor=self.load_predictor,
@@ -97,12 +88,8 @@ class DPTARASimulator:
         # Simulation clock.
         self.simulation_clock = 0.0
 
-        # Unified event queue:
+        # Unified event queue.
         # (event_time, event_order, sequence, event_type, task, resource)
-        #
-        # Completion events: event_order = 0
-        # Arrival events: event_order = 1
-
         self.event_queue = []
 
         # Tasks waiting for allocation.
@@ -110,7 +97,7 @@ class DPTARASimulator:
 
         self.event_counter = itertools.count()
 
-        # Time-integrated normalized resource-load proxy.
+        # Time-integrated CPU utilization.
         self.utilization_area = 0.0
 
         # Time-integrated load-balancing rate.
@@ -286,7 +273,7 @@ class DPTARASimulator:
 
             self.balancing_observation_time += elapsed_time
 
-        # Update time-weighted normalized resource-load proxy.
+        # Update time-weighted system utilization.
         self.utilization_area += current_load * elapsed_time
 
         self.simulation_clock = next_time
@@ -328,31 +315,28 @@ class DPTARASimulator:
 
         while self.waiting_tasks:
 
-            if self.algorithm == "DPTARA":
-                current_load = self._calculate_system_load()
+            current_load = self._calculate_system_load()
 
-                # DPTARA: recalculate dynamic priorities using current system load.
-                for task in self.waiting_tasks:
-                    task.priority = self.priority_model.calculate_priority(
-                        task,
-                        self.simulation_clock,
-                        current_load
-                    )
+            # Recalculate priority for every waiting task.
+            for task in self.waiting_tasks:
 
-                self.waiting_tasks.sort(
-                    key=lambda task: (
-                        -task.priority,
-                        task.arrival_time,
-                        task.task_id
-                    )
+                task.priority = self.priority_model.calculate_priority(
+                    task,
+                    self.simulation_clock,
+                    current_load
                 )
 
-            else:
-                # Baseline: apply its own task-ordering strategy.
-                self.waiting_tasks = self.strategy.rank_tasks(
-                    self.waiting_tasks,
-                    self.simulation_clock
+            # Sort by:
+            # 1. Higher priority first.
+            # 2. Earlier arrival first when priorities tie.
+            # 3. Lower task ID first as a final tie-breaker.
+            self.waiting_tasks.sort(
+                key=lambda task: (
+                    -task.priority,
+                    task.arrival_time,
+                    task.task_id
                 )
+            )
 
             task_allocated = False
 
@@ -430,7 +414,7 @@ class DPTARASimulator:
 
     def run(self):
 
-        print(f"\nStarting event-driven simulation: {self.algorithm}...")
+        print("\nStarting event-driven DPTARA simulation...")
 
         if not self.resource_manager.get_all_resources():
             self.initialize_resources()
@@ -595,7 +579,7 @@ class DPTARASimulator:
     def print_results(self, results):
 
         print("\n" + "=" * 58)
-        print(f"             {self.algorithm} SIMULATION RESULTS")
+        print("             DPTARA SIMULATION RESULTS")
         print("=" * 58)
 
         # ----------------------------------------------
