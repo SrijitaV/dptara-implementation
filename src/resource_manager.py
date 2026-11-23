@@ -22,8 +22,21 @@ class ResourceManager:
                 f"Resource {resource.resource_id} already exists."
             )
 
-        if not math.isfinite(resource.capacity) or resource.capacity <= 0:
-            raise ValueError("Resource capacity must be positive and finite.")
+        if (
+            not math.isfinite(resource.capacity)
+            or resource.capacity <= 0
+        ):
+            raise ValueError(
+                "Resource capacity must be positive and finite."
+            )
+
+        if (
+            not math.isfinite(resource.processing_speed_mips)
+            or resource.processing_speed_mips <= 0
+        ):
+            raise ValueError(
+                "Resource processing speed must be positive and finite."
+            )
 
         if (
             not math.isfinite(resource.current_load)
@@ -71,7 +84,10 @@ class ResourceManager:
         if resource.status != "active":
             raise ValueError("Resource is not active.")
 
-        if not isinstance(load, (int, float)) or not math.isfinite(load):
+        if (
+            not isinstance(load, (int, float))
+            or not math.isfinite(load)
+        ):
             raise ValueError("Load must be a finite number.")
 
         if load <= 0:
@@ -89,6 +105,7 @@ class ResourceManager:
         if load > available + tolerance:
             raise ValueError("Insufficient resource capacity.")
 
+        # Prevent tiny floating-point over-allocation.
         resource.current_load += min(load, available)
 
     def release_load(self, resource_id, load):
@@ -98,7 +115,10 @@ class ResourceManager:
         if resource is None:
             raise ValueError("Resource not found.")
 
-        if not isinstance(load, (int, float)) or not math.isfinite(load):
+        if (
+            not isinstance(load, (int, float))
+            or not math.isfinite(load)
+        ):
             raise ValueError("Load must be a finite number.")
 
         if load <= 0:
@@ -121,6 +141,7 @@ class ResourceManager:
 
         remaining_load = resource.current_load - load
 
+        # Correct tiny floating-point residuals.
         if abs(remaining_load) <= tolerance:
             remaining_load = 0.0
 

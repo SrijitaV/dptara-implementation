@@ -22,10 +22,13 @@ class ResourceAllocator:
 
     def _get_effective_processing_speed(self, task, resource):
         """
-        Match TaskExecutor's execution-time calculation.
+        Return the CPU processing rate reserved for this task.
         """
 
-        return resource.processing_speed_mips
+        return min(
+            task.cpu_demand_mips,
+            resource.processing_speed_mips
+        )
 
     def _is_deadline_feasible(self, task, resource, current_time):
         """Check whether the task can finish before its deadline."""
@@ -34,6 +37,9 @@ class ResourceAllocator:
             return False
 
         if task.workload_mi is None or task.workload_mi <= 0:
+            return False
+
+        if task.cpu_demand_mips is None or task.cpu_demand_mips <= 0:
             return False
 
         effective_speed = self._get_effective_processing_speed(
@@ -101,7 +107,12 @@ class ResourceAllocator:
             if resource.processing_speed_mips <= 0:
                 continue
 
+            # Task demand must fit both available capacity
+            # and the resource's maximum processing speed.
             if task.cpu_demand_mips > resource.available_capacity:
+                continue
+
+            if task.cpu_demand_mips > resource.processing_speed_mips:
                 continue
 
             projected_utilization = self._get_projected_utilization(
