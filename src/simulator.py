@@ -256,15 +256,10 @@ class DPTARASimulator:
         # Record balancing rates only when resources are carrying load.
         if elapsed_time > 0 and current_load > 0:
 
-            balancing_rates = (
-                self.load_balancer.calculate_all_balancing_rates(
+            average_balancing_rate = (
+                self.load_balancer.calculate_balancing_score(
                     self.resources
                 )
-            )
-
-            average_balancing_rate = (
-                sum(balancing_rates.values()) /
-                len(balancing_rates)
             )
 
             self.balancing_rate_area += (
@@ -303,34 +298,29 @@ class DPTARASimulator:
     # --------------------------------------------------
 
     
-    def _dispatch_waiting_tasks(self):
-        """
-        Dispatch waiting tasks according to dynamically
-        calculated priority.
+def _dispatch_waiting_tasks(self):
+    """
+    Dispatch waiting tasks using the selected algorithm.
 
-        Higher priority values are considered first.
-        Priorities are recalculated whenever a task is
-        dispatched because system load may have changed.
-        """
+    DPTARA uses dynamic priority scheduling.
+    Baselines use their own task-ranking strategies.
+    """
 
-        while self.waiting_tasks:
+    while self.waiting_tasks:
+
+        if self.algorithm == "DPTARA":
 
             current_load = self._calculate_system_load()
 
-            # Recalculate priority for every waiting task.
             for task in self.waiting_tasks:
-
                 task.priority = self.priority_model.calculate_priority(
                     task,
                     self.simulation_clock,
                     current_load
                 )
 
-            # Sort by:
-            # 1. Higher priority first.
-            # 2. Earlier arrival first when priorities tie.
-            # 3. Lower task ID first as a final tie-breaker.
-            self.waiting_tasks.sort(
+            ordered_tasks = sorted(
+                self.waiting_tasks,
                 key=lambda task: (
                     -task.priority,
                     task.arrival_time,
@@ -338,58 +328,53 @@ class DPTARASimulator:
                 )
             )
 
-            task_allocated = False
+        else:
+            # Use the selected baseline's own task-ranking method.
+            ordered_tasks = self.strategy.rank_tasks(
+                self.waiting_tasks,
+                self.simulation_clock
+            )
 
-            # Try tasks in priority order.
-            for task in self.waiting_tasks:
+        task_allocated = False
 
-                task.status = "pending"
+        for task in ordered_tasks:
 
-                selected_resource = (
-                    self.resource_allocator.allocate_task(
-                        task,
-                        current_time=self.simulation_clock
-                    )
-                )
+            task.status = "pending"
 
-                # If this task cannot be allocated,
-                # retain it in the waiting queue and try
-                # the next task.
-                if selected_resource is None:
-                    task.status = "pending"
-                    continue
+            selected_resource = self.resource_allocator.allocate_task(
+                task,
+                current_time=self.simulation_clock
+            )
 
-                # Remove only after successful allocation.
-                self.waiting_tasks.remove(task)
+            if selected_resource is None:
+                continue
 
-                self.task_executor.execute_task(
+            self.waiting_tasks.remove(task)
+
+            self.task_executor.execute_task(
+                task,
+                selected_resource,
+                self.simulation_clock
+            )
+
+            heapq.heappush(
+                self.event_queue,
+                (
+                    task.completion_time,
+                    0,
+                    next(self.event_counter),
+                    "completion",
                     task,
-                    selected_resource,
-                    self.simulation_clock
+                    selected_resource
                 )
+            )
 
-                # Schedule task completion.
-                heapq.heappush(
-                    self.event_queue,
-                    (
-                        task.completion_time,
-                        0,
-                        next(self.event_counter),
-                        "completion",
-                        task,
-                        selected_resource
-                    )
-                )
+            task_allocated = True
+            break
 
-                task_allocated = True
+        if not task_allocated:
+            break
 
-                # Resource load has changed. Recalculate
-                # priorities before dispatching another task.
-                break
-
-            # No waiting task could be allocated.
-            if not task_allocated:
-                break
 
     # --------------------------------------------------
     # ARRIVAL EVENT

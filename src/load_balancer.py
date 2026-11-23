@@ -1,24 +1,40 @@
 
 class LoadBalancer:
     """
-    Calculates load balancing rates across computing resources
-    using Algorithm 3 of the DPTARA research paper.
+    Measures load distribution using Jain's fairness index.
+
+    Utilization is used instead of raw load so that resources
+    with different capacities can be compared.
     """
 
-    def calculate_balancing_rate(self, target_resource, resources):
-        """
-        Calculate balancing rate for a selected resource.
-
-        Parameters:
-            target_resource: Resource whose balancing rate is calculated.
-            resources: List of all computing resources.
-
-        Returns:
-            Load balancing rate as a percentage.
-        """
+    def calculate_balancing_score(self, resources):
 
         if not resources:
             raise ValueError("Resource list cannot be empty.")
+
+        utilizations = [
+            max(0.0, min(1.0, resource.utilization))
+            for resource in resources
+        ]
+
+        n = len(utilizations)
+        sum_utilization = sum(utilizations)
+        sum_squared = sum(u * u for u in utilizations)
+
+        if sum_squared == 0:
+            return 100.0
+
+        score = (
+            (sum_utilization ** 2)
+            / (n * sum_squared)
+        ) * 100.0
+
+        return score
+
+    def calculate_balancing_rate(self, target_resource, resources):
+        """
+        Compatibility method. Returns the system-wide score.
+        """
 
         if not any(
             r.resource_id == target_resource.resource_id
@@ -26,39 +42,16 @@ class LoadBalancer:
         ):
             raise ValueError("Target resource not found.")
 
-        # Step 1: Calculate total resource load
-        total_load = sum(
-            resource.current_load
-            for resource in resources
-        )
-
-        # Step 2: Count total resources
-        num_resources = len(resources)
-
-        # Step 3: Calculate average load
-        average_load = total_load / num_resources
-
-        # Handle the case where all resources have zero load
-        if average_load == 0:
-            return 100.0
-
-        # Step 4: Calculate balancing rate
-        balancing_rate = (
-            1 - abs(
-                target_resource.current_load - average_load
-            ) / average_load
-        ) * 100
-
-        # Step 5: Return balancing rate
-        return balancing_rate
+        return self.calculate_balancing_score(resources)
 
     def calculate_all_balancing_rates(self, resources):
         """
-        Calculate balancing rates for all resources.
+        Returns the same system-wide score for each resource.
         """
 
+        score = self.calculate_balancing_score(resources)
+
         return {
-            resource.resource_id:
-                self.calculate_balancing_rate(resource, resources)
+            resource.resource_id: score
             for resource in resources
         }
