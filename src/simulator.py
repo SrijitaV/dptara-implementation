@@ -448,34 +448,66 @@ class DPTARASimulator:
                 )
             )
 
-        # Process events chronologically.
+        
+        # Process events chronologically in timestamp batches.
         while self.event_queue:
 
-            (
-                event_time,
-                _,
-                _,
-                event_type,
-                task,
-                resource
-            ) = heapq.heappop(self.event_queue)
+            # Get the earliest event timestamp.
+            event_time = self.event_queue[0][0]
 
+            # Advance simulation time once for this batch.
             self._record_utilization_interval(event_time)
 
-            if event_type == "completion":
+            simultaneous_completions = []
+            simultaneous_arrivals = []
 
+            # Collect every event occurring at this timestamp.
+            while (
+                self.event_queue
+                and self.event_queue[0][0] == event_time
+            ):
+
+                event = heapq.heappop(self.event_queue)
+
+                (
+                    _,
+                    _,
+                    _,
+                    event_type,
+                    task,
+                    resource
+                ) = event
+
+                if event_type == "completion":
+                    simultaneous_completions.append(
+                        (task, resource)
+                    )
+
+                elif event_type == "arrival":
+                    simultaneous_arrivals.append(task)
+
+                else:
+                    raise ValueError(
+                        f"Unknown event type: {event_type}"
+                    )
+
+            # Step 1: Process all completions first.
+            for task, resource in simultaneous_completions:
                 self._handle_completion(task, resource)
-                self._dispatch_waiting_tasks()
 
-            elif event_type == "arrival":
+            # Step 2: Add all simultaneous arrivals to waiting queue.
+            for task in simultaneous_arrivals:
 
-                self._handle_arrival(task)
+                if task.status != "pending":
+                    raise ValueError(
+                        f"Task {task.task_id} is not pending."
+                    )
 
-            else:
+                self.waiting_tasks.append(task)
 
-                raise ValueError(
-                    f"Unknown event type: {event_type}"
-                )
+            # Step 3: Dispatch once after processing the entire batch.
+            self._dispatch_waiting_tasks()
+
 
         # Mark remaining waiting tasks as unallocated.
         for task in self.waiting_tasks:
@@ -668,9 +700,9 @@ class DPTARASimulator:
         )
 
         print(
-            f"Average normalized resource-load ratio: "
-            f"{results['system_utilization_percent']:.2f}%"
-        )
+        f"Average normalized resource-load ratio: "
+        f"{results['system_utilization_percent']:.2f}%"
+    )
 
         print(
             f"Average load balancing rate: "
