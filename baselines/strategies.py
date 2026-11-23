@@ -67,30 +67,42 @@ class NBIHAStrategy(BaseStrategy):
     """
     Resource-characteristic matching proxy.
 
-    Ranks resources using normalized load, processing speed,
+    Considers normalized load, processing speed,
     network latency, and power consumption.
 
-    The paper's per-task CPU demand is unspecified, so task
-    size is not treated as a fabricated CPU requirement.
+    This is a heuristic adaptation, not an exact reproduction
+    of the original NBIHA optimization method.
     """
 
     name = "NBIHA"
 
     def task_score(self, task, current_time):
-        # Earlier deadlines receive preference.
         remaining_time = (
             task.arrival_time + task.deadline - current_time
         )
+
+        # Prefer tasks with less remaining deadline slack.
         return -remaining_time
 
     def resource_score(self, task, resource):
+
         speed = max(resource.processing_speed_mips, 1e-9)
         power = max(resource.power_consumption_w, 0.0)
 
+        workload = task.workload_mi
+
+        if workload is None or workload <= 0:
+            raise ValueError(
+                "Task must have a valid workload in MI."
+            )
+
+        estimated_compute_time = workload / speed
+        network_delay = resource.network_latency_ms / 1000.0
+
         return (
             resource.utilization
-            + (1.0 / speed)
-            + (resource.network_latency_ms / 1000.0)
+            + estimated_compute_time
+            + network_delay
             + (power / 1000.0)
         )
 
@@ -117,10 +129,20 @@ class CORAGTStrategy(BaseStrategy):
         return -remaining_time
 
     def resource_score(self, task, resource):
+
         speed = max(resource.processing_speed_mips, 1e-9)
         power = max(resource.power_consumption_w, 0.0)
 
-        estimated_compute_time = task.size_mb / speed
+        workload = task.workload_mi
+
+        if workload is None or workload <= 0:
+            raise ValueError(
+                "Task must have a valid workload in MI."
+            )
+
+        # Computing time must use MI / MIPS.
+        estimated_compute_time = workload / speed
+
         network_delay = resource.network_latency_ms / 1000.0
 
         utility = (
