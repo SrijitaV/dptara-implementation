@@ -32,7 +32,7 @@ class DPTARASimulator:
         self,
         simulation_duration=10,
         arrival_rate=5.0,
-        seed=42
+        seed=42,
         algorithm="DPTARA"
     ):
 
@@ -47,8 +47,8 @@ class DPTARASimulator:
         self.seed = seed
 
         supported_algorithms = {
-        "DPTARA", "A-PBRA", "NBIHA", "CORA-GT"
-    }
+            "DPTARA", "A-PBRA", "NBIHA", "CORA-GT"
+        }
 
         if algorithm not in supported_algorithms:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
@@ -110,7 +110,7 @@ class DPTARASimulator:
 
         self.event_counter = itertools.count()
 
-        # Time-integrated CPU utilization.
+        # Time-integrated normalized resource-load proxy.
         self.utilization_area = 0.0
 
         # Time-integrated load-balancing rate.
@@ -286,7 +286,7 @@ class DPTARASimulator:
 
             self.balancing_observation_time += elapsed_time
 
-        # Update time-weighted system utilization.
+        # Update time-weighted normalized resource-load proxy.
         self.utilization_area += current_load * elapsed_time
 
         self.simulation_clock = next_time
@@ -328,28 +328,31 @@ class DPTARASimulator:
 
         while self.waiting_tasks:
 
-            current_load = self._calculate_system_load()
+            if self.algorithm == "DPTARA":
+                current_load = self._calculate_system_load()
 
-            # Recalculate priority for every waiting task.
-            for task in self.waiting_tasks:
+                # DPTARA: recalculate dynamic priorities using current system load.
+                for task in self.waiting_tasks:
+                    task.priority = self.priority_model.calculate_priority(
+                        task,
+                        self.simulation_clock,
+                        current_load
+                    )
 
-                task.priority = self.priority_model.calculate_priority(
-                    task,
-                    self.simulation_clock,
-                    current_load
+                self.waiting_tasks.sort(
+                    key=lambda task: (
+                        -task.priority,
+                        task.arrival_time,
+                        task.task_id
+                    )
                 )
 
-            # Sort by:
-            # 1. Higher priority first.
-            # 2. Earlier arrival first when priorities tie.
-            # 3. Lower task ID first as a final tie-breaker.
-            self.waiting_tasks.sort(
-                key=lambda task: (
-                    -task.priority,
-                    task.arrival_time,
-                    task.task_id
+            else:
+                # Baseline: apply its own task-ordering strategy.
+                self.waiting_tasks = self.strategy.rank_tasks(
+                    self.waiting_tasks,
+                    self.simulation_clock
                 )
-            )
 
             task_allocated = False
 
@@ -427,7 +430,7 @@ class DPTARASimulator:
 
     def run(self):
 
-        print("\nStarting event-driven DPTARA simulation...")
+        print(f"\nStarting event-driven simulation: {self.algorithm}...")
 
         if not self.resource_manager.get_all_resources():
             self.initialize_resources()
@@ -592,7 +595,7 @@ class DPTARASimulator:
     def print_results(self, results):
 
         print("\n" + "=" * 58)
-        print("             DPTARA SIMULATION RESULTS")
+        print(f"             {self.algorithm} SIMULATION RESULTS")
         print("=" * 58)
 
         # ----------------------------------------------
