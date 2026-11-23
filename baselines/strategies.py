@@ -66,7 +66,7 @@ class NBIHAStrategy(BaseStrategy):
     Resource-characteristic matching heuristic.
 
     Prefers resources that can accommodate the task while
-    minimizing execution time and projected utilization.
+    minimizing projected utilization and network delay.
     """
 
     name = "NBIHA"
@@ -80,7 +80,7 @@ class NBIHAStrategy(BaseStrategy):
         return -remaining_time
 
     def resource_score(self, task, resource):
-        speed = max(resource.processing_speed_mips, 1e-9)
+
         capacity = max(resource.capacity, 1e-9)
 
         workload = task.workload_mi
@@ -92,8 +92,8 @@ class NBIHAStrategy(BaseStrategy):
         if demand is None or demand <= 0:
             raise ValueError("Task must have valid CPU demand in MIPS.")
 
-        # Must match TaskExecutor's execution-time calculation.
-        execution_time = workload / speed
+        # Execution time must match TaskExecutor.
+        execution_time = workload / demand
 
         projected_utilization = (
             resource.current_load + demand
@@ -135,7 +135,7 @@ class CORAGTStrategy(BaseStrategy):
         )
 
     def resource_score(self, task, resource):
-        speed = max(resource.processing_speed_mips, 1e-9)
+
         capacity = max(resource.capacity, 1e-9)
 
         workload = task.workload_mi
@@ -152,8 +152,8 @@ class CORAGTStrategy(BaseStrategy):
             1.0
         )
 
-        # Must match TaskExecutor's execution-time calculation.
-        execution_time = workload / speed
+        # Must match TaskExecutor's fixed CPU reservation model.
+        execution_time = workload / demand
 
         network_delay = resource.network_latency_ms / 1000.0
 

@@ -101,8 +101,27 @@ def run_one_experiment(algorithm, duration, arrival_rate, seed):
         "generated_tasks"
     ]
 
-    for key in important_metrics:
-        row.setdefault(key, 0.0)
+    # Do not silently replace missing metrics with zero.
+    missing_metrics = [
+        key for key in important_metrics
+        if key not in results
+    ]
+
+    if missing_metrics:
+        raise KeyError(
+            f"Missing metrics for {algorithm}, "
+            f"duration={duration}, arrival_rate={arrival_rate}, "
+            f"seed={seed}: {missing_metrics}"
+        )
+
+    # Calculate energy per completed task for this individual run.
+    if results["completed_tasks"] > 0:
+        row["energy_per_completed_task_j"] = (
+            results["total_energy_consumption"]
+            / results["completed_tasks"]
+        )
+    else:
+        row["energy_per_completed_task_j"] = float("nan")
 
     return row
 
@@ -143,11 +162,6 @@ def make_summary(raw):
 
     summary["average_execution_time_ms"] = (
         summary["average_execution_time"] * 1000.0
-    )
-
-    summary["energy_per_completed_task_j"] = (
-        summary["total_energy_consumption"]
-        / summary["completed_tasks"].replace(0, float("nan"))
     )
 
     return summary
@@ -254,6 +268,9 @@ and Jain's fairness index.
 
 Jain's fairness index measures resource distribution
 fairness, not the speed of load balancing.
+
+Energy per completed task is calculated separately for
+each run and then averaged across the five seeds.
 
 ## 6. Reproducibility
 
@@ -450,6 +467,7 @@ def main():
         "average_latency_ms",
         "average_execution_time_ms",
         "total_energy_consumption",
+        "energy_per_completed_task_j",
         "deadline_miss_rate_percent",
         "average_system_utilization_percent",
         "average_balancing_rate_percent"
