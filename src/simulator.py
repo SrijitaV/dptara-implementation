@@ -6,6 +6,7 @@ import itertools
 from .models.entities import Resource
 from .models.priority_model import DynamicPriorityModel
 from .models.load_predictor import LoadPredictor
+from baselines.strategies import get_strategy
 
 from .task_generator import TaskGenerator
 from .resource_manager import ResourceManager
@@ -32,6 +33,7 @@ class DPTARASimulator:
         simulation_duration=10,
         arrival_rate=5.0,
         seed=42
+        algorithm="DPTARA"
     ):
 
         if simulation_duration <= 0:
@@ -43,6 +45,19 @@ class DPTARASimulator:
         self.simulation_duration = simulation_duration
         self.arrival_rate = arrival_rate
         self.seed = seed
+
+        supported_algorithms = {
+        "DPTARA", "A-PBRA", "NBIHA", "CORA-GT"
+    }
+
+        if algorithm not in supported_algorithms:
+            raise ValueError(f"Unsupported algorithm: {algorithm}")
+
+        self.algorithm = algorithm
+        self.strategy = (
+            None if algorithm == "DPTARA"
+            else get_strategy(algorithm)
+        )
 
         self.rng = random.Random(seed)
 
@@ -60,7 +75,8 @@ class DPTARASimulator:
         # Connect predictor to allocator.
         self.resource_allocator = ResourceAllocator(
             self.resource_manager,
-            load_predictor=self.load_predictor
+            load_predictor=self.load_predictor,
+            strategy=self.strategy
         )
 
         self.task_executor = TaskExecutor()
