@@ -3,9 +3,15 @@ class Metrics:
     """
     Collects and calculates performance metrics
     for the DPTARA simulation.
+
+    Deadline classification:
+        - Completed before deadline: on-time.
+        - Completed after deadline: deadline miss.
+        - Incomplete after deadline: deadline miss.
+        - Incomplete before deadline: unresolved.
     """
 
-    def calculate_metrics(self, tasks, resources):
+    def calculate_metrics(self, tasks, resources, current_time=None):
 
         total_tasks = len(tasks)
 
@@ -50,9 +56,11 @@ class Metrics:
         # 2. ENERGY CONSUMPTION
         # --------------------------------------------------
 
+        # Include energy consumed by all tasks, including
+        # tasks that have started but not yet completed.
         total_energy = sum(
             task.energy_consumption
-            for task in completed_tasks
+            for task in tasks
         )
 
         # --------------------------------------------------
@@ -63,28 +71,48 @@ class Metrics:
 
         on_time_count = 0
         late_completed_count = 0
+        expired_incomplete_count = 0
+        unresolved_count = 0
+
         deadline_violations = []
 
-        for task in completed_tasks:
+        for task in tasks:
 
-            latency = (
-                task.completion_time - task.arrival_time
+            deadline_time = (
+                task.arrival_time + task.deadline
             )
 
-            violation = latency - task.deadline
+            if task.status == "completed":
 
-            # Avoid floating-point precision errors.
-            if violation > tolerance:
-                late_completed_count += 1
-                deadline_violations.append(violation)
+                latency = (
+                    task.completion_time - task.arrival_time
+                )
+
+                violation = latency - task.deadline
+
+                if violation > tolerance:
+                    late_completed_count += 1
+                    deadline_violations.append(violation)
+                else:
+                    on_time_count += 1
+
             else:
-                on_time_count += 1
 
-        # Incomplete tasks are also counted as deadline misses.
-        incomplete_count = total_tasks - completed_count
+                # Classify incomplete tasks only when their
+                # deadlines have actually expired.
+                if current_time is not None:
+
+                    if current_time >= deadline_time:
+                        expired_incomplete_count += 1
+                    else:
+                        unresolved_count += 1
+
+                else:
+                    unresolved_count += 1
 
         deadline_missed_count = (
-            late_completed_count + incomplete_count
+            late_completed_count
+            + expired_incomplete_count
         )
 
         deadline_met_rate = (
@@ -117,7 +145,7 @@ class Metrics:
         )
 
         # --------------------------------------------------
-        # 4. UNALLOCATED TASKS
+        # 4. UNALLOCATED AND INCOMPLETE TASKS
         # --------------------------------------------------
 
         unallocated_count = sum(
@@ -125,22 +153,29 @@ class Metrics:
             if task.status == "unallocated"
         )
 
+        incomplete_count = total_tasks - completed_count
+
         # --------------------------------------------------
         # 5. RESOURCE UTILIZATION
         # --------------------------------------------------
 
         total_capacity = sum(
-            resource.capacity for resource in resources
+            resource.capacity
+            for resource in resources
         )
 
         total_load = sum(
-            resource.current_load for resource in resources
+            resource.current_load
+            for resource in resources
         )
 
         system_utilization = (
             total_load / total_capacity * 100
             if total_capacity > 0 else 0.0
         )
+
+        # This is the utilization snapshot at the time
+        # metrics are calculated, not time-averaged utilization.
 
         # --------------------------------------------------
         # 6. RETURN RESULTS
@@ -149,11 +184,14 @@ class Metrics:
         return {
             "total_tasks": total_tasks,
             "completed_tasks": completed_count,
+            "incomplete_tasks": incomplete_count,
             "completion_rate_percent": completion_rate,
 
             "on_time_tasks": on_time_count,
             "late_completed_tasks": late_completed_count,
+            "expired_incomplete_tasks": expired_incomplete_count,
             "deadline_missed_tasks": deadline_missed_count,
+            "unresolved_tasks": unresolved_count,
 
             "deadline_met_rate_percent": deadline_met_rate,
             "deadline_miss_rate_percent": deadline_miss_rate,

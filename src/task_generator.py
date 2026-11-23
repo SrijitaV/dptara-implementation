@@ -7,15 +7,14 @@ class TaskGenerator:
     """
     Generates healthcare IoT tasks.
 
-    Task arrivals follow a Poisson process, implemented
-    using exponentially distributed inter-arrival times.
+    Task arrivals follow a Poisson process.
 
-    Task categories and priority values can be configured
-    through task_profiles.
+    Task size, computational workload and CPU demand are
+    generated separately.
 
-    Any task-category proportions or priority values not
-    specified by the paper must be treated as implementation
-    assumptions.
+    Workload and CPU-demand parameters are implementation
+    assumptions because the paper does not specify their
+    numerical distributions.
     """
 
     def __init__(
@@ -25,6 +24,9 @@ class TaskGenerator:
         max_size_mb=50,
         min_deadline=10,
         max_deadline=100,
+        mi_per_mb=100.0,
+        min_cpu_demand_mips=50.0,
+        max_cpu_demand_mips=250.0,
         seed=None
     ):
         if arrival_rate <= 0:
@@ -36,11 +38,24 @@ class TaskGenerator:
         if min_deadline <= 0 or max_deadline < min_deadline:
             raise ValueError("Invalid task deadline range.")
 
+        if mi_per_mb <= 0:
+            raise ValueError("MI per MB must be positive.")
+
+        if min_cpu_demand_mips <= 0:
+            raise ValueError("Minimum CPU demand must be positive.")
+
+        if max_cpu_demand_mips < min_cpu_demand_mips:
+            raise ValueError("Invalid CPU demand range.")
+
         self.arrival_rate = arrival_rate
         self.min_size_mb = min_size_mb
         self.max_size_mb = max_size_mb
         self.min_deadline = min_deadline
         self.max_deadline = max_deadline
+
+        self.mi_per_mb = mi_per_mb
+        self.min_cpu_demand_mips = min_cpu_demand_mips
+        self.max_cpu_demand_mips = max_cpu_demand_mips
 
         self.rng = random.Random(seed)
         self.next_task_id = 1
@@ -51,15 +66,6 @@ class TaskGenerator:
         task_type,
         original_priority
     ):
-        """
-        Select a task category and its original priority.
-
-        Each profile must contain:
-            task_type
-            original_priority
-            probability
-        """
-
         if task_profiles is None:
             if not task_type:
                 raise ValueError("Task type cannot be empty.")
@@ -69,7 +75,6 @@ class TaskGenerator:
         if not task_profiles:
             raise ValueError("Task profiles cannot be empty.")
 
-        total_probability = 0.0
         weights = []
 
         for profile in task_profiles:
@@ -81,8 +86,8 @@ class TaskGenerator:
 
             if not required_keys.issubset(profile):
                 raise ValueError(
-                    "Each task profile must contain "
-                    "task_type, original_priority, and probability."
+                    "Each profile must contain task_type, "
+                    "original_priority and probability."
                 )
 
             if not profile["task_type"]:
@@ -91,23 +96,22 @@ class TaskGenerator:
             if profile["probability"] < 0:
                 raise ValueError("Probability cannot be negative.")
 
-            total_probability += profile["probability"]
             weights.append(profile["probability"])
 
-        if abs(total_probability - 1.0) > 1e-9:
+        if abs(sum(weights) - 1.0) > 1e-9:
             raise ValueError(
                 "Task profile probabilities must sum to 1.0."
             )
 
-        selected_profile = self.rng.choices(
+        selected = self.rng.choices(
             task_profiles,
             weights=weights,
             k=1
         )[0]
 
         return (
-            selected_profile["task_type"],
-            selected_profile["original_priority"]
+            selected["task_type"],
+            selected["original_priority"]
         )
 
     def generate_tasks(
@@ -117,16 +121,6 @@ class TaskGenerator:
         original_priority=1.0,
         task_profiles=None
     ):
-        """
-        Generate tasks during the specified simulation duration.
-
-        If task_profiles is provided, task categories and
-        priorities are sampled according to their probabilities.
-
-        Otherwise, the original single-category behaviour
-        is preserved.
-        """
-
         if duration_seconds < 0:
             raise ValueError("Duration cannot be negative.")
 
@@ -135,7 +129,6 @@ class TaskGenerator:
 
         while True:
 
-            # Generate the next inter-arrival time.
             inter_arrival_time = self.rng.expovariate(
                 self.arrival_rate
             )
@@ -145,19 +138,25 @@ class TaskGenerator:
             if current_time > duration_seconds:
                 break
 
-            # Generate task size.
             size_mb = self.rng.uniform(
                 self.min_size_mb,
                 self.max_size_mb
             )
 
-            # Generate task deadline.
             deadline = self.rng.uniform(
                 self.min_deadline,
                 self.max_deadline
             )
 
-            # Select task category and original priority.
+            # Computational workload (MI).
+            workload_mi = size_mb * self.mi_per_mb
+
+            # CPU demand (MIPS).
+            cpu_demand_mips = self.rng.uniform(
+                self.min_cpu_demand_mips,
+                self.max_cpu_demand_mips
+            )
+
             selected_type, selected_priority = (
                 self._select_task_profile(
                     task_profiles,
@@ -172,7 +171,9 @@ class TaskGenerator:
                 original_priority=selected_priority,
                 arrival_time=round(current_time, 6),
                 deadline=round(deadline, 2),
-                task_type=selected_type
+                task_type=selected_type,
+                workload_mi=round(workload_mi, 2),
+                cpu_demand_mips=round(cpu_demand_mips, 2)
             )
 
             tasks.append(task)

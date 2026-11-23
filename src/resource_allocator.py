@@ -5,12 +5,10 @@ from .resource_manager import ResourceManager
 
 class ResourceAllocator:
     """
-    Paper-inspired task allocator.
+    Allocates tasks using CPU demand measured in MIPS.
 
-    IMPORTANT:
-    Task size (MB) is used as a normalized load proxy because
-    the paper does not specify a per-task CPU-demand model.
-    This must not be interpreted as physical CPU utilization.
+    Task input size (MB), computational workload (MI),
+    and CPU demand (MIPS) are treated separately.
     """
 
     def __init__(self, resource_manager, load_predictor=None, strategy=None):
@@ -22,16 +20,18 @@ class ResourceAllocator:
         self.strategy = strategy
 
     def _is_deadline_feasible(self, task, resource, current_time):
-        """Estimate whether execution can finish before the deadline."""
+        """Check whether the task can finish before its deadline."""
 
         if resource.processing_speed_mips <= 0:
             return False
 
+        if task.workload_mi is None or task.workload_mi <= 0:
+            return False
+
         network_delay = resource.network_latency_ms / 1000.0
 
-        # Retain the paper's execution-time equation.
         estimated_execution = (
-            task.size_mb / resource.processing_speed_mips
+            task.workload_mi / resource.processing_speed_mips
         )
 
         estimated_completion = (
@@ -45,7 +45,7 @@ class ResourceAllocator:
     def _get_projected_utilization(
         self, resource, task, current_time
     ):
-        """Estimate normalized load after allocating this task."""
+        """Estimate CPU utilization after task allocation."""
 
         predicted_utilization = resource.utilization
 
@@ -65,7 +65,7 @@ class ResourceAllocator:
 
         projected_utilization = (
             predicted_utilization
-            + task.size_mb / resource.capacity
+            + task.cpu_demand_mips / resource.capacity
         )
 
         return projected_utilization
@@ -85,11 +85,12 @@ class ResourceAllocator:
             if resource.capacity <= 0:
                 continue
 
-            # Existing normalized-load capacity check.
-            if task.size_mb > resource.available_capacity:
+            if (
+                task.cpu_demand_mips
+                > resource.available_capacity
+            ):
                 continue
 
-            # Reject resources predicted to exceed capacity.
             projected_utilization = self._get_projected_utilization(
                 resource, task, current_time
             )
@@ -97,7 +98,6 @@ class ResourceAllocator:
             if projected_utilization > 1.0:
                 continue
 
-            # Reject resources that cannot meet the task deadline.
             if not self._is_deadline_feasible(
                 task, resource, current_time
             ):
@@ -134,6 +134,18 @@ class ResourceAllocator:
 
         if task.size_mb <= 0:
             raise ValueError("Task size must be positive.")
+
+        if (
+            task.workload_mi is None
+            or task.workload_mi <= 0
+        ):
+            raise ValueError("Task workload must be positive.")
+
+        if (
+            task.cpu_demand_mips is None
+            or task.cpu_demand_mips <= 0
+        ):
+            raise ValueError("Task CPU demand must be positive.")
 
         if current_time is None:
             current_time = task.arrival_time
@@ -176,25 +188,20 @@ class ResourceAllocator:
             task.status = "unallocated"
             return None
 
-        # Reserve the existing normalized load proxy.
+        # Reserve CPU demand in MIPS.
         self.resource_manager.add_load(
             selected_resource.resource_id,
-            task.size_mb
+            task.cpu_demand_mips
         )
 
         task.assigned_resource = selected_resource.resource_id
-        task.allocated_load = task.size_mb
-
-        # No per-task CPU demand is specified by the paper.
-        task.workload_mi = None
-        task.cpu_demand_mips = None
-
+        task.allocated_load = task.cpu_demand_mips
         task.status = "allocated"
 
         return selected_resource
 
     def release_task(self, task):
-        """Release the load reserved for an allocated task."""
+        """Release CPU capacity reserved for a task."""
 
         if task.assigned_resource is None:
             raise ValueError("Task has no assigned resource.")
