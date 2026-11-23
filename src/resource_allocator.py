@@ -12,12 +12,24 @@ class ResourceAllocator:
     """
 
     def __init__(self, resource_manager, load_predictor=None, strategy=None):
+
         if not isinstance(resource_manager, ResourceManager):
             raise TypeError("Expected a ResourceManager object.")
 
         self.resource_manager = resource_manager
         self.load_predictor = load_predictor
         self.strategy = strategy
+
+    def _get_effective_processing_speed(self, task, resource):
+        """
+        Calculate the CPU processing rate assigned to a task.
+        Must match TaskExecutor's execution-time calculation.
+        """
+
+        return min(
+            task.cpu_demand_mips,
+            resource.processing_speed_mips
+        )
 
     def _is_deadline_feasible(self, task, resource, current_time):
         """Check whether the task can finish before its deadline."""
@@ -28,10 +40,17 @@ class ResourceAllocator:
         if task.workload_mi is None or task.workload_mi <= 0:
             return False
 
+        effective_speed = self._get_effective_processing_speed(
+            task, resource
+        )
+
+        if effective_speed <= 0:
+            return False
+
         network_delay = resource.network_latency_ms / 1000.0
 
         estimated_execution = (
-            task.workload_mi / resource.processing_speed_mips
+            task.workload_mi / effective_speed
         )
 
         estimated_completion = (
@@ -85,10 +104,10 @@ class ResourceAllocator:
             if resource.capacity <= 0:
                 continue
 
-            if (
-                task.cpu_demand_mips
-                > resource.available_capacity
-            ):
+            if resource.processing_speed_mips <= 0:
+                continue
+
+            if task.cpu_demand_mips > resource.available_capacity:
                 continue
 
             projected_utilization = self._get_projected_utilization(
@@ -135,16 +154,10 @@ class ResourceAllocator:
         if task.size_mb <= 0:
             raise ValueError("Task size must be positive.")
 
-        if (
-            task.workload_mi is None
-            or task.workload_mi <= 0
-        ):
+        if task.workload_mi is None or task.workload_mi <= 0:
             raise ValueError("Task workload must be positive.")
 
-        if (
-            task.cpu_demand_mips is None
-            or task.cpu_demand_mips <= 0
-        ):
+        if task.cpu_demand_mips is None or task.cpu_demand_mips <= 0:
             raise ValueError("Task CPU demand must be positive.")
 
         if current_time is None:
@@ -173,6 +186,7 @@ class ResourceAllocator:
 
         # Cloud fallback.
         if selected_resource is None:
+
             cloud_resources = [
                 resource for resource in all_resources
                 if resource.resource_type == "cloud"
@@ -201,7 +215,11 @@ class ResourceAllocator:
         return selected_resource
 
     def release_task(self, task):
-        """Release CPU capacity reserved for a task."""
+        """
+        Release reserved CPU capacity.
+
+        Preserve assignment metadata for post-simulation analysis.
+        """
 
         if task.assigned_resource is None:
             raise ValueError("Task has no assigned resource.")
@@ -209,17 +227,10 @@ class ResourceAllocator:
         if task.allocated_load is None:
             raise ValueError("Task allocated load is unavailable.")
 
-        if task.status not in (
-            "allocated",
-            "running",
-            "completed"
-        ):
+        if task.status not in ("allocated", "running"):
             raise ValueError("Task is not in a releasable state.")
 
         self.resource_manager.release_load(
             task.assigned_resource,
             task.allocated_load
         )
-
-        task.assigned_resource = None
-        task.allocated_load = None

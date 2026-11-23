@@ -34,7 +34,11 @@ class BaseStrategy:
 
 
 class APBRAStrategy(BaseStrategy):
-    """Priority-based resource allocation heuristic."""
+    """
+    Priority-based resource allocation heuristic.
+
+    Prioritizes critical task types and prefers less-loaded resources.
+    """
 
     name = "A-PBRA"
 
@@ -58,7 +62,12 @@ class APBRAStrategy(BaseStrategy):
 
 
 class NBIHAStrategy(BaseStrategy):
-    """Resource-characteristic matching heuristic."""
+    """
+    Resource-characteristic matching heuristic.
+
+    Prefers resources that can accommodate the task while
+    minimizing execution time and projected utilization.
+    """
 
     name = "NBIHA"
 
@@ -66,25 +75,37 @@ class NBIHAStrategy(BaseStrategy):
         remaining_time = (
             task.arrival_time + task.deadline - current_time
         )
+
+        # Prioritize tasks with less remaining time.
         return -remaining_time
 
     def resource_score(self, task, resource):
         speed = max(resource.processing_speed_mips, 1e-9)
-        power = max(resource.power_consumption_w, 0.0)
+        capacity = max(resource.capacity, 1e-9)
 
         workload = task.workload_mi
+        demand = task.cpu_demand_mips
 
         if workload is None or workload <= 0:
             raise ValueError("Task must have a valid workload in MI.")
 
-        compute_time = workload / speed
+        if demand is None or demand <= 0:
+            raise ValueError("Task must have valid CPU demand in MIPS.")
+
+        execution_time = workload / min(demand, speed)
+
+        projected_utilization = (
+            resource.current_load + demand
+        ) / capacity
+
         network_delay = resource.network_latency_ms / 1000.0
 
+        # Prefer a resource with sufficient remaining capacity
+        # and a shorter expected execution time.
         return (
-            resource.utilization
-            + compute_time
-            + network_delay
-            + power / 1000.0
+            projected_utilization,
+            execution_time,
+            network_delay
         )
 
 
@@ -92,45 +113,62 @@ class CORAGTStrategy(BaseStrategy):
     """
     Game-inspired utility-based resource selection heuristic.
 
-    Uses a congestion-sensitive penalty and a nonlinear
-    utilization cost. This is an experimental adaptation,
-    not an exact reproduction of the original CORA-GT method.
+    Uses task urgency, task priority, nonlinear congestion,
+    execution delay, and energy-related resource cost.
+
+    This is an experimental adaptation, not an exact
+    reproduction of the original CORA-GT method.
     """
 
     name = "CORA-GT"
 
     def task_score(self, task, current_time):
-        remaining_time = (
-            task.arrival_time + task.deadline - current_time
+        remaining_time = max(
+            task.arrival_time + task.deadline - current_time,
+            0.001
         )
-        return -remaining_time
+
+        urgency = 1.0 / remaining_time
+
+        # Combine urgency with the task's original priority.
+        return (
+            0.5 * task.original_priority
+            + 10.0 * urgency
+        )
 
     def resource_score(self, task, resource):
         speed = max(resource.processing_speed_mips, 1e-9)
-        power = max(resource.power_consumption_w, 0.0)
+        capacity = max(resource.capacity, 1e-9)
 
         workload = task.workload_mi
+        demand = task.cpu_demand_mips
 
         if workload is None or workload <= 0:
             raise ValueError("Task must have a valid workload in MI.")
 
-        utilization = max(0.0, min(resource.utilization, 1.0))
+        if demand is None or demand <= 0:
+            raise ValueError("Task must have valid CPU demand in MIPS.")
 
-        compute_time = workload / speed
+        projected_utilization = min(
+            (resource.current_load + demand) / capacity,
+            1.0
+        )
+
+        execution_time = workload / min(demand, speed)
+
         network_delay = resource.network_latency_ms / 1000.0
 
-        # Nonlinear congestion penalty.
-        congestion_penalty = utilization ** 2
+        power_cost = resource.power_consumption_w / 1000.0
 
-        # Resource cost considers execution delay and energy.
-        execution_cost = compute_time + network_delay
-        energy_cost = power / 1000.0
+        # Nonlinear congestion cost.
+        congestion_cost = projected_utilization ** 2
 
-        # Lower score represents a more desirable resource.
+        # Utility-inspired combined cost.
         return (
-            execution_cost * (1.0 + 2.0 * utilization)
-            + congestion_penalty
-            + energy_cost
+            0.5 * execution_time
+            + 0.3 * network_delay
+            + 0.1 * power_cost
+            + 0.1 * congestion_cost
         )
 
 

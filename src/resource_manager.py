@@ -1,4 +1,6 @@
 
+import math
+
 from .models.entities import Resource
 
 
@@ -11,9 +13,6 @@ class ResourceManager:
         self.resources = {}
 
     def register_resource(self, resource):
-        """
-        Register a new computing resource.
-        """
 
         if not isinstance(resource, Resource):
             raise TypeError("Expected a Resource object.")
@@ -23,32 +22,24 @@ class ResourceManager:
                 f"Resource {resource.resource_id} already exists."
             )
 
-        if resource.capacity <= 0:
-            raise ValueError("Resource capacity must be positive.")
+        if not math.isfinite(resource.capacity) or resource.capacity <= 0:
+            raise ValueError("Resource capacity must be positive and finite.")
 
-        if not 0 <= resource.current_load <= resource.capacity:
+        if (
+            not math.isfinite(resource.current_load)
+            or not 0 <= resource.current_load <= resource.capacity
+        ):
             raise ValueError("Invalid initial resource load.")
 
         self.resources[resource.resource_id] = resource
 
     def get_resource(self, resource_id):
-        """
-        Retrieve a resource using its ID.
-        """
-
         return self.resources.get(resource_id)
 
     def get_all_resources(self):
-        """
-        Return all registered resources.
-        """
-
         return list(self.resources.values())
 
     def get_available_resources(self, resource_type=None):
-        """
-        Return active resources having available capacity.
-        """
 
         available = []
 
@@ -70,11 +61,7 @@ class ResourceManager:
 
         return available
 
-
     def add_load(self, resource_id, load):
-        """
-        Increase the current CPU load of a resource.
-        """
 
         resource = self.get_resource(resource_id)
 
@@ -83,6 +70,9 @@ class ResourceManager:
 
         if resource.status != "active":
             raise ValueError("Resource is not active.")
+
+        if not isinstance(load, (int, float)) or not math.isfinite(load):
+            raise ValueError("Load must be a finite number.")
 
         if load <= 0:
             raise ValueError("Load must be positive.")
@@ -99,21 +89,21 @@ class ResourceManager:
         if load > available + tolerance:
             raise ValueError("Insufficient resource capacity.")
 
-        # Avoid exceeding capacity due to tiny rounding errors.
         resource.current_load += min(load, available)
 
-
-
     def release_load(self, resource_id, load):
+
         resource = self.get_resource(resource_id)
 
         if resource is None:
             raise ValueError("Resource not found.")
 
+        if not isinstance(load, (int, float)) or not math.isfinite(load):
+            raise ValueError("Load must be a finite number.")
+
         if load <= 0:
             raise ValueError("Load must be positive.")
 
-        # Account for tiny floating-point representation errors.
         tolerance = 1e-10 * max(
             1.0,
             abs(resource.capacity),
@@ -131,16 +121,12 @@ class ResourceManager:
 
         remaining_load = resource.current_load - load
 
-        # Remove tiny floating-point residuals.
         if abs(remaining_load) <= tolerance:
             remaining_load = 0.0
 
         resource.current_load = max(0.0, remaining_load)
 
     def get_resource_status(self):
-        """
-        Return a summary of all registered resources.
-        """
 
         status = []
 
@@ -159,9 +145,6 @@ class ResourceManager:
         return status
 
     def reset_loads(self):
-        """
-        Reset resource loads before a new simulation run.
-        """
 
         for resource in self.resources.values():
             resource.current_load = 0.0

@@ -9,6 +9,10 @@ class Metrics:
         - Completed after deadline: deadline miss.
         - Incomplete after deadline: deadline miss.
         - Incomplete before deadline: unresolved.
+
+    System utilization:
+        Calculated as time-weighted CPU utilization using
+        task allocation and execution intervals.
     """
 
     def calculate_metrics(self, tasks, resources, current_time=None):
@@ -23,13 +27,19 @@ class Metrics:
 
         completed_count = len(completed_tasks)
 
+        # --------------------------------------------------
+        # 1. COMPLETION RATE
+        # --------------------------------------------------
+
         completion_rate = (
             completed_count / total_tasks * 100
             if total_tasks > 0 else 0.0
         )
 
+        incomplete_count = total_tasks - completed_count
+
         # --------------------------------------------------
-        # 1. LATENCY AND EXECUTION TIME
+        # 2. LATENCY AND EXECUTION TIME
         # --------------------------------------------------
 
         latencies = [
@@ -53,18 +63,16 @@ class Metrics:
         )
 
         # --------------------------------------------------
-        # 2. ENERGY CONSUMPTION
+        # 3. ENERGY CONSUMPTION
         # --------------------------------------------------
 
-        # Include energy consumed by all tasks, including
-        # tasks that have started but not yet completed.
         total_energy = sum(
             task.energy_consumption
             for task in tasks
         )
 
         # --------------------------------------------------
-        # 3. DEADLINE PERFORMANCE
+        # 4. DEADLINE PERFORMANCE
         # --------------------------------------------------
 
         tolerance = 1e-9
@@ -82,7 +90,10 @@ class Metrics:
                 task.arrival_time + task.deadline
             )
 
-            if task.status == "completed":
+            if (
+                task.status == "completed"
+                and task.completion_time is not None
+            ):
 
                 latency = (
                     task.completion_time - task.arrival_time
@@ -98,8 +109,6 @@ class Metrics:
 
             else:
 
-                # Classify incomplete tasks only when their
-                # deadlines have actually expired.
                 if current_time is not None:
 
                     if current_time >= deadline_time:
@@ -111,8 +120,7 @@ class Metrics:
                     unresolved_count += 1
 
         deadline_missed_count = (
-            late_completed_count
-            + expired_incomplete_count
+            late_completed_count + expired_incomplete_count
         )
 
         deadline_met_rate = (
@@ -145,7 +153,7 @@ class Metrics:
         )
 
         # --------------------------------------------------
-        # 4. UNALLOCATED AND INCOMPLETE TASKS
+        # 5. UNALLOCATED TASKS
         # --------------------------------------------------
 
         unallocated_count = sum(
@@ -153,10 +161,8 @@ class Metrics:
             if task.status == "unallocated"
         )
 
-        incomplete_count = total_tasks - completed_count
-
         # --------------------------------------------------
-        # 5. RESOURCE UTILIZATION
+        # 6. TIME-WEIGHTED SYSTEM UTILIZATION
         # --------------------------------------------------
 
         total_capacity = sum(
@@ -164,21 +170,62 @@ class Metrics:
             for resource in resources
         )
 
-        total_load = sum(
-            resource.current_load
-            for resource in resources
-        )
+        system_utilization = 0.0
 
-        system_utilization = (
-            total_load / total_capacity * 100
-            if total_capacity > 0 else 0.0
-        )
+        if (
+            total_capacity > 0
+            and current_time is not None
+            and current_time > 0
+        ):
 
-        # This is the utilization snapshot at the time
-        # metrics are calculated, not time-averaged utilization.
+            total_cpu_time = 0.0
+
+            for task in tasks:
+
+                resource_id = task.assigned_resource
+
+                if resource_id is None:
+                    continue
+
+                allocated_load = task.allocated_load
+
+                if allocated_load is None:
+                    allocated_load = task.cpu_demand_mips
+
+                if allocated_load is None or allocated_load <= 0:
+                    continue
+
+                if task.start_time is None:
+                    continue
+
+                start_time = max(0.0, task.start_time)
+
+                # Completed tasks use their actual completion time.
+                # Running tasks are measured up to current_time.
+                if (
+                    task.status == "completed"
+                    and task.completion_time is not None
+                ):
+                    end_time = task.completion_time
+                else:
+                    end_time = current_time
+
+                end_time = min(end_time, current_time)
+
+                duration = max(0.0, end_time - start_time)
+
+                total_cpu_time += allocated_load * duration
+
+            total_available_cpu_time = (
+                total_capacity * current_time
+            )
+
+            system_utilization = (
+                total_cpu_time / total_available_cpu_time * 100
+            )
 
         # --------------------------------------------------
-        # 6. RETURN RESULTS
+        # 7. RETURN RESULTS
         # --------------------------------------------------
 
         return {
