@@ -15,10 +15,10 @@ class TaskExecutor:
         if task.assigned_resource != resource.resource_id:
             raise ValueError("Task-resource assignment mismatch.")
 
-        if task.workload_mi <= 0:
+        if task.workload_mi is None or task.workload_mi <= 0:
             raise ValueError("Task workload must be positive.")
 
-        if task.cpu_demand_mips <= 0:
+        if task.cpu_demand_mips is None or task.cpu_demand_mips <= 0:
             raise ValueError("Task CPU demand must be positive.")
 
         if resource.processing_speed_mips <= 0:
@@ -27,13 +27,10 @@ class TaskExecutor:
         if current_time < task.arrival_time:
             raise ValueError("Execution cannot start before task arrival.")
 
-        # CPU demand represents the CPU rate reserved for this task.
-        allocated_speed = min(
-            task.cpu_demand_mips,
-            resource.processing_speed_mips
+        # Resource processing speed determines computation time.
+        execution_time = (
+            task.workload_mi / resource.processing_speed_mips
         )
-
-        execution_time = task.workload_mi / allocated_speed
 
         network_delay = resource.network_latency_ms / 1000.0
 
@@ -41,7 +38,7 @@ class TaskExecutor:
         task.execution_time = execution_time
         task.completion_time = task.start_time + execution_time
 
-        # The allocator has already reserved this task's CPU load.
+        # CPU demand has already been reserved by the allocator.
         task.energy_consumption = self.energy_manager.calculate_energy(
             resource,
             task.start_time,

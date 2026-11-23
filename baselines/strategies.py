@@ -92,7 +92,8 @@ class NBIHAStrategy(BaseStrategy):
         if demand is None or demand <= 0:
             raise ValueError("Task must have valid CPU demand in MIPS.")
 
-        execution_time = workload / min(demand, speed)
+        # Must match TaskExecutor's execution-time calculation.
+        execution_time = workload / speed
 
         projected_utilization = (
             resource.current_load + demand
@@ -100,8 +101,6 @@ class NBIHAStrategy(BaseStrategy):
 
         network_delay = resource.network_latency_ms / 1000.0
 
-        # Prefer a resource with sufficient remaining capacity
-        # and a shorter expected execution time.
         return (
             projected_utilization,
             execution_time,
@@ -130,7 +129,6 @@ class CORAGTStrategy(BaseStrategy):
 
         urgency = 1.0 / remaining_time
 
-        # Combine urgency with the task's original priority.
         return (
             0.5 * task.original_priority
             + 10.0 * urgency
@@ -154,16 +152,15 @@ class CORAGTStrategy(BaseStrategy):
             1.0
         )
 
-        execution_time = workload / min(demand, speed)
+        # Must match TaskExecutor's execution-time calculation.
+        execution_time = workload / speed
 
         network_delay = resource.network_latency_ms / 1000.0
 
         power_cost = resource.power_consumption_w / 1000.0
 
-        # Nonlinear congestion cost.
         congestion_cost = projected_utilization ** 2
 
-        # Utility-inspired combined cost.
         return (
             0.5 * execution_time
             + 0.3 * network_delay

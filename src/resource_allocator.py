@@ -22,14 +22,10 @@ class ResourceAllocator:
 
     def _get_effective_processing_speed(self, task, resource):
         """
-        Calculate the CPU processing rate assigned to a task.
-        Must match TaskExecutor's execution-time calculation.
+        Match TaskExecutor's execution-time calculation.
         """
 
-        return min(
-            task.cpu_demand_mips,
-            resource.processing_speed_mips
-        )
+        return resource.processing_speed_mips
 
     def _is_deadline_feasible(self, task, resource, current_time):
         """Check whether the task can finish before its deadline."""
@@ -49,9 +45,7 @@ class ResourceAllocator:
 
         network_delay = resource.network_latency_ms / 1000.0
 
-        estimated_execution = (
-            task.workload_mi / effective_speed
-        )
+        estimated_execution = task.workload_mi / effective_speed
 
         estimated_completion = (
             current_time + network_delay + estimated_execution
@@ -215,11 +209,7 @@ class ResourceAllocator:
         return selected_resource
 
     def release_task(self, task):
-        """
-        Release reserved CPU capacity.
-
-        Preserve assignment metadata for post-simulation analysis.
-        """
+        """Release reserved CPU capacity while preserving assignment metadata."""
 
         if task.assigned_resource is None:
             raise ValueError("Task has no assigned resource.")

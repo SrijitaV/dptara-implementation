@@ -11,8 +11,8 @@ class Metrics:
         - Incomplete before deadline: unresolved.
 
     System utilization:
-        Calculated as time-weighted CPU utilization using
-        task allocation and execution intervals.
+        Calculated using allocated CPU time over
+        total available CPU time.
     """
 
     def calculate_metrics(self, tasks, resources, current_time=None):
@@ -26,6 +26,7 @@ class Metrics:
         ]
 
         completed_count = len(completed_tasks)
+        incomplete_count = total_tasks - completed_count
 
         # --------------------------------------------------
         # 1. COMPLETION RATE
@@ -35,8 +36,6 @@ class Metrics:
             completed_count / total_tasks * 100
             if total_tasks > 0 else 0.0
         )
-
-        incomplete_count = total_tasks - completed_count
 
         # --------------------------------------------------
         # 2. LATENCY AND EXECUTION TIME
@@ -86,9 +85,7 @@ class Metrics:
 
         for task in tasks:
 
-            deadline_time = (
-                task.arrival_time + task.deadline
-            )
+            deadline_time = task.arrival_time + task.deadline
 
             if (
                 task.status == "completed"
@@ -110,17 +107,19 @@ class Metrics:
             else:
 
                 if current_time is not None:
-
                     if current_time >= deadline_time:
                         expired_incomplete_count += 1
                     else:
                         unresolved_count += 1
-
                 else:
                     unresolved_count += 1
 
         deadline_missed_count = (
             late_completed_count + expired_incomplete_count
+        )
+
+        deadline_evaluated_tasks = (
+            on_time_count + deadline_missed_count
         )
 
         deadline_met_rate = (
@@ -133,9 +132,12 @@ class Metrics:
             if total_tasks > 0 else 0.0
         )
 
-        total_deadline_violation = sum(
-            deadline_violations
+        unresolved_rate = (
+            unresolved_count / total_tasks * 100
+            if total_tasks > 0 else 0.0
         )
+
+        total_deadline_violation = sum(deadline_violations)
 
         average_deadline_violation = (
             total_deadline_violation / len(deadline_violations)
@@ -182,9 +184,7 @@ class Metrics:
 
             for task in tasks:
 
-                resource_id = task.assigned_resource
-
-                if resource_id is None:
+                if task.assigned_resource is None:
                     continue
 
                 allocated_load = task.allocated_load
@@ -200,8 +200,6 @@ class Metrics:
 
                 start_time = max(0.0, task.start_time)
 
-                # Completed tasks use their actual completion time.
-                # Running tasks are measured up to current_time.
                 if (
                     task.status == "completed"
                     and task.completion_time is not None
@@ -238,10 +236,12 @@ class Metrics:
             "late_completed_tasks": late_completed_count,
             "expired_incomplete_tasks": expired_incomplete_count,
             "deadline_missed_tasks": deadline_missed_count,
+            "deadline_evaluated_tasks": deadline_evaluated_tasks,
             "unresolved_tasks": unresolved_count,
 
             "deadline_met_rate_percent": deadline_met_rate,
             "deadline_miss_rate_percent": deadline_miss_rate,
+            "unresolved_rate_percent": unresolved_rate,
 
             "total_deadline_violation": total_deadline_violation,
             "average_deadline_violation": average_deadline_violation,
