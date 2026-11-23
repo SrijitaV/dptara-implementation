@@ -1,157 +1,197 @@
 
 # Algorithm Analysis
 
+This document describes the algorithms presented in the DPTARA research paper, their mathematical formulations, their current implementation, and the differences between the paper and the Python simulation.
+
+The implementation status refers to the current repository and its individual module tests. Individual validation does not automatically establish complete integration into the event-driven simulation.
+
+---
+
 ## 1. Algorithm 1: DPTARA Algorithm
 
 ### 1.1 Objective
 
-The Dynamic Priority-Based Task Scheduling and Adaptive Resource Allocation (DPTARA) algorithm schedules incoming tasks and allocates available resources across a hierarchical computing environment consisting of local hardware resources, edge resources, and a cloud server.
+The Dynamic Priority-Based Task Scheduling and Adaptive Resource Allocation (DPTARA) algorithm aims to schedule incoming tasks and allocate available resources in a healthcare edge computing environment.
 
-Its objectives include:
+The framework considers:
+
 - Dynamic task prioritization.
-- Efficient resource allocation.
+- Adaptive resource allocation.
 - Load balancing.
-- Reduced task execution time.
-- Reduced energy consumption.
+- Task execution and completion.
+- Energy consumption.
 - Prediction of future resource loads.
 
+The paper describes a hierarchical environment involving local hardware resources, edge resources, and cloud resources.
+
+**Current implementation scope:** The Python simulator initializes 10 edge resources and one cloud resource. Local resource execution is not currently simulated.
+
 ### 1.2 Inputs
+
+The paper describes the following inputs:
 
 - T: Set of incoming tasks.
 - RL: Set of local resources.
 - RE: Set of edge resources.
 - RC: Cloud server.
 
+In the current simulation, the active resource set consists of edge resources and one cloud resource.
+
 ### 1.3 Outputs
+
+The algorithm evaluates:
 
 - Task execution times.
 - Load balancing rates.
 - Energy consumption.
-- Task execution metrics.
+- Task performance metrics.
 - Predicted future resource loads.
 
 ### 1.4 Initialization
 
-The algorithm initializes:
+The simulation initializes:
 
-- task_metrics: Dictionary for storing task performance metrics.
-- load_forecaster: Linear Regression model for future load prediction.
-- Resource queues and resource utilization information.
+- Task and resource entities.
+- Resource management components.
+- Task generation mechanism.
+- Resource allocation mechanism.
+- Task execution mechanism.
+- Energy management component.
+- Metrics collection.
+- Load prediction and load balancing components.
 
-Tasks are categorized into:
-
-- Rp: High-priority tasks.
-- Rn: Normal-priority tasks.
-
-Total resource demand is calculated separately for both categories using task sizes.
+The simulator initializes 10 edge resources and one cloud resource using the configured simulation parameters.
 
 ### 1.5 Task Prioritization
 
-For every incoming task:
+For an incoming task, the paper uses Algorithm 2 to calculate its dynamically adjusted priority.
 
-1. Calculate its dynamically adjusted priority using Algorithm 2.
-2. Initialize selected_resource as None.
-3. Initialize minimum load as infinity.
+The implementation includes:
+
+1. Retrieving the task's original priority.
+2. Calculating its aging contribution.
+3. Considering the current resource load.
+4. Computing the adjusted priority.
+5. Using priority values in the priority scheduling component.
+
+The priority calculation and priority scheduling components have been implemented and tested individually.
+
+Complete integration of priority-based scheduling into the event-driven simulation requires further validation.
 
 ### 1.6 Resource Selection
 
-The algorithm examines resources in:
+The paper describes resource selection across local, edge, and cloud resources.
 
-Rtotal = RL union RE union {RC}
+The current Python implementation follows a more limited allocation strategy:
 
-For each resource:
+1. Identify eligible edge resources.
+2. Check whether the task can be accommodated by the available resource capacity.
+3. Prefer edge resources over the cloud.
+4. Among eligible edge resources, select the least-loaded resource.
+5. If no eligible edge resource is available, consider the cloud resource.
+6. Allocate the task and update the resource load.
 
-1. Check whether current_load + task_size is within capacity.
-2. Check whether the resource's current load is lower than the minimum load found so far.
-3. Select the feasible resource with the lowest current load.
+The current eligibility check compares task size with available resource capacity.
+
+**Modeling limitation:** Task size is represented in MB, while resource capacity is described using CPU-related units. The paper does not provide sufficient detail to establish a physically consistent conversion. The implementation therefore does not invent a per-task CPU-demand distribution.
 
 ### 1.7 Cloud Allocation
 
-If no local or edge resource can handle a task:
+The current allocator uses the cloud as a fallback destination.
 
-1. Check available resources and priority-based allocation.
-2. Verify whether the cloud server has sufficient capacity.
-3. Allocate the task to the cloud if feasible.
-4. If the cloud is also overloaded, report the overloaded condition.
+The allocation procedure is:
 
-### 1.8 Task Queuing and Execution
+1. Search for an eligible edge resource.
+2. If one is available, select the least-loaded eligible edge resource.
+3. If no eligible edge resource is available, check cloud availability.
+4. Allocate the task to the cloud if it satisfies the implemented capacity condition.
+5. If no resource is eligible, the task remains unallocated.
 
-After resource selection:
+The current implementation does not reproduce every priority-based resource reclamation, task splitting, or partial allocation mechanism that may be described in the paper.
 
-1. Insert the task into the selected resource's queue.
-2. Increase the resource's current load by the task size.
-3. Process queued tasks.
-4. Record task execution start time.
-5. Simulate task execution.
-6. Calculate completion time.
-7. Calculate resource efficiency.
-8. Calculate energy consumption.
-9. Update task_metrics.
+### 1.8 Task Execution
 
-### 1.9 Load Prediction
+After allocation, the task executor:
 
-After task execution, the algorithm uses the initialized Linear Regression model to predict future resource loads using task-size information.
+1. Validates the task and its assigned resource.
+2. Calculates network transmission delay.
+3. Calculates execution time using the relationship described in the paper.
+4. Determines task start and completion times.
+5. Updates task execution status.
+6. Calculates energy consumption through the energy manager.
 
-The predicted loads are reported and the performance metrics are plotted.
+The implementation uses:
+
+\[
+T_{computing}=\frac{\delta}{\psi_{resource}}
+\]
+
+Where:
+
+- \(\delta\): Task input data size.
+- \(\psi_{resource}\): Processing speed of the assigned resource.
+
+**Unit limitation:** The paper combines MB and MIPS without specifying a conversion factor. The implementation follows the stated relationship without inventing one. Therefore, execution-time values should be interpreted as outputs of the implemented simulation model.
+
+### 1.9 Load Prediction and Load Balancing
+
+The simulation contains two separate components:
+
+- A historical utilization-based Linear Regression predictor.
+- A load-balancing component that calculates resource-level balancing scores.
+
+The predictor estimates future utilization from historical observations.
+
+The load balancer evaluates the deviation between individual resource load and average resource load.
+
+The current regression predictor is an implementation choice and is not an exact reproduction of the paper's Equation (13).
 
 ### 1.10 Main Constraints
 
-The resource allocation process follows these constraints:
+The current allocation model applies the following conditions:
 
-- C1: Resource load must not exceed its capacity.
-- C2: Task priority must align with the resource allocation policy.
-- C3: Cloud resource load must not exceed cloud capacity.
+- A task is allocated only when an eligible resource is found.
+- Resource load is updated after allocation.
+- Edge resources are preferred over cloud resources.
+- The least-loaded eligible edge resource is selected.
+- Allocated load is released when the task completes.
 
-### 1.11 Supporting Algorithms
+The current implementation does not establish deadline feasibility through a CPU-demand-based allocation calculation.
 
-Algorithm 1 depends on:
+### 1.11 Algorithm 1 Implementation Status
 
-- Algorithm 2: DynamicTaskPrioritization()
-- Algorithm 3: CalculateBalancingRate()
-- Linear Regression: Future load prediction.
+| Component | Status |
+|---|---|
+| Task generation | Implemented and tested |
+| Resource initialization | Implemented and tested |
+| Edge resource allocation | Implemented and tested |
+| Cloud fallback | Implemented and tested |
+| Task execution | Implemented and tested |
+| Energy calculation | Implemented and tested |
+| Dynamic priority calculation | Implemented and tested individually |
+| Priority scheduling | Implemented and tested individually |
+| Load prediction | Implemented and tested individually |
+| Load balancing | Implemented and tested individually |
+| Event-driven simulation | Implemented and tested |
+| Complete priority integration | Requires further validation |
+| Complete predictive load-balancing integration | Requires further validation |
+| Local resource simulation | Not implemented |
+| Baseline algorithm comparison | Pending |
 
-### 1.12 Implementation Considerations
-
-The Python implementation requires:
-
-- Task representation.
-- Resource representation.
-- Resource queues.
-- Capacity checking.
-- Priority-based task ordering.
-- Resource selection.
-- Cloud fallback.
-- Task execution simulation.
-- Execution-time calculation.
-- Energy calculation.
-- Load balancing calculation.
-- Future load prediction.
-- Metric collection and visualization.
-
-### 1.13 Unspecified Details Requiring Investigation
-
-The paper does not fully specify:
-
-- The exact resource queue scheduling mechanism.
-- The handling of a task when every resource is overloaded.
-- The exact execution-time simulation procedure.
-- The complete training data and prediction procedure for Linear Regression.
-- The precise mechanics of priority-based resource reservation.
-
-These details must be investigated and documented before implementation decisions are finalized.
+---
 
 ## 2. Algorithm 2: Dynamic Task Prioritization
 
 ### 2.1 Purpose
 
-Algorithm 2, DynamicTaskPrioritization, dynamically adjusts the priority of incoming tasks based on their original priority, waiting time, deadline, and current resource load.
+Algorithm 2, DynamicTaskPrioritization, dynamically adjusts task priority according to original priority, waiting time, deadline, and current resource load.
 
-Its primary objective is to ensure that urgent tasks receive appropriate scheduling preference while considering the workload of the assigned resources.
+Its objective is to give appropriate scheduling preference to tasks according to their urgency and system conditions.
 
 ### 2.2 Input and Output
 
-- **Input:** Task `Ti`.
-- **Output:** Adjusted priority of task `Ti`.
+- **Input:** Task \(T_i\).
+- **Output:** Adjusted priority of task \(T_i\).
 
 ### 2.3 Mathematical Formulation
 
@@ -165,108 +205,109 @@ P_i = \alpha P_{orig,i}
 
 Where:
 
-- `Pi`: Dynamically calculated task priority.
-- `P_orig,i`: Original task priority.
-- `alpha`: Weight assigned to original priority.
-- `beta`: Weight assigned to the aging factor.
-- `gamma`: Weight assigned to current resource load.
-- `T_current`: Current system time.
-- `T_arrival,i`: Task arrival time.
-- `D_i`: Task deadline.
-- `L_current,i`: Current load of the resource allocated to the task.
+- \(P_i\): Dynamically calculated task priority.
+- \(P_{orig,i}\): Original task priority.
+- \(\alpha\): Weight assigned to original priority.
+- \(\beta\): Weight assigned to the aging factor.
+- \(\gamma\): Weight assigned to current resource load.
+- \(T_{current}\): Current system time.
+- \(T_{arrival,i}\): Task arrival time.
+- \(D_i\): Task deadline.
+- \(L_{current,i}\): Current resource load.
 
 ### 2.4 Components of the Priority Function
 
 **A. Original Priority Contribution**
 
-The original priority represents the intrinsic importance of a task. The coefficient alpha controls its contribution to the final priority.
+The original priority represents the intrinsic importance of a task.
+
+The coefficient \(\alpha\) controls its contribution to the final priority.
 
 **B. Task Aging Contribution**
 
-The aging factor measures the elapsed time since task arrival relative to its deadline allowance.
+The aging factor measures elapsed time since task arrival relative to its deadline allowance.
 
-As the task waits longer, its aging contribution increases, helping prevent tasks from remaining unattended indefinitely.
+As waiting time increases, the aging contribution increases.
 
 **C. Resource Load Penalty**
 
-The current resource load is subtracted from the priority calculation. This penalizes tasks associated with heavily loaded resources and encourages workload balancing.
+The current resource load is subtracted from the priority calculation.
+
+The coefficient \(\gamma\) controls the influence of this penalty.
 
 ### 2.5 Algorithm Workflow
 
-1. Receive a task as input.
+The priority calculation follows these steps:
+
+1. Receive a task.
 2. Retrieve its original priority and arrival time.
-3. Obtain the current system time.
-4. Retrieve its deadline information.
-5. Obtain the current load of its allocated resource.
+3. Obtain the current simulation time.
+4. Retrieve deadline information.
+5. Obtain the relevant resource-load value.
 6. Calculate the aging factor.
-7. Calculate the adjusted priority using Equation (11).
-8. Update the task's priority.
-9. Return the adjusted priority.
+7. Calculate adjusted priority using Equation (11).
+8. Update the task priority.
+9. Return the calculated priority.
 
 ### 2.6 Relationship with Algorithm 1
 
-Algorithm 1 invokes DynamicTaskPrioritization for every incoming task before selecting a suitable resource.
+Algorithm 1 uses the adjusted priority as part of the task scheduling process.
 
-The adjusted priority is subsequently used as part of the resource selection and scheduling process.
+The current repository contains a priority model and a priority scheduling component. Both have been tested individually.
 
-Algorithm 2 therefore acts as a supporting priority-calculation component within the overall DPTARA framework.
+However, their complete integration with the event-driven allocation and execution workflow still requires validation.
 
 ### 2.7 Unspecified Implementation Details
 
 The paper does not explicitly establish all the following implementation details:
 
-- Exact values of alpha, beta and gamma.
-- Whether deadline is represented as an absolute timestamp or a duration.
+- Exact numerical values of \(\alpha\), \(\beta\), and \(\gamma\).
+- Whether deadline is represented as an absolute timestamp or a duration in every calculation.
 - The normalization method for resource load.
 - The precise priority sorting convention.
 - The frequency of priority recalculation.
 - The handling of overdue tasks.
 - The exact resource-load measurement interval.
 
-These details must be investigated before finalizing the implementation.
+The current implementation uses coefficients of 1.0 as implementation settings. These values are not specified numerical values from the paper.
 
-### 2.8 Implementation Considerations
+### 2.8 Implementation Status
 
-The implementation will require a task representation containing original priority, arrival time, deadline information, and current resource association.
+**Status: Implemented and individually tested.**
 
-A separate priority calculation function will implement Equation (11) and return the dynamically adjusted priority.
+The priority model calculates adjusted task priorities, and the priority scheduling component has been tested using a separate scheduling experiment.
 
-The function will be integrated into the main DPTARA scheduling workflow.
+Full integration with the event-driven simulator remains to be validated.
 
-**Note:** Numerical coefficients and other unspecified parameters must be identified through the paper or explicitly documented as experimental implementation assumptions.
-
+---
 
 ## 3. Algorithm 3: CalculateBalancingRate
 
 ### 3.1 Purpose
 
-Algorithm 3 calculates the load balancing rate of a selected resource Rj.
+Algorithm 3 calculates the load balancing rate of a selected resource \(R_j\).
 
-Its purpose is to measure how evenly the workload is distributed across the available resources.
-
-The algorithm compares the current load of a particular resource with the average load across all resources.
-
-A resource whose load is close to the average load contributes to better load balancing.
+Its purpose is to evaluate how closely the workload of an individual resource matches the average workload across all available resources.
 
 ### 3.2 Input and Output
 
 **Input:**
-- Rj: The selected resource for which the balancing rate is calculated.
-- Rtotal: The set of all available resources.
+
+- \(R_j\): Selected resource.
+- \(R_{total}\): Set of available resources.
 
 **Output:**
-- balancing_rate: The calculated load balancing rate for resource Rj, expressed as a percentage.
+
+- `balancing_rate`: Calculated load balancing score.
 
 ### 3.3 Algorithm Workflow
 
-The algorithm performs the following operations:
-
-1. Calculate the total workload across all available resources by summing their current loads.
-2. Count the total number of available resources.
-3. Calculate the average workload by dividing the total workload by the number of resources.
-4. Compare the current load of the selected resource with the calculated average load.
-5. Calculate the balancing rate based on the deviation between the selected resource's load and the average load.
-6. Return the calculated balancing rate.
+1. Calculate total workload across all available resources.
+2. Count the number of resources.
+3. Calculate average resource workload.
+4. Compare the selected resource's load with the average.
+5. Calculate the balancing score.
+6. Return the calculated score.
 
 ### 3.4 Mathematical Formulation
 
@@ -301,76 +342,63 @@ BalancingRate =
 
 ### 3.5 Interpretation
 
-- A balancing rate close to 100% indicates that the resource load is close to the system-wide average.
-- A lower balancing rate indicates a larger deviation from the average workload.
-- The algorithm provides a numerical measure of workload distribution across resources.
+- A score close to 100 indicates that the resource load is close to the system-wide average.
+- A lower score indicates a larger deviation from the average.
+- A negative score is possible when the deviation exceeds the average workload.
+
+**Important:** The formula does not constrain the result to the range 0–100. The implementation preserves the raw formula rather than artificially clamping negative values.
+
+The score should therefore be interpreted as the formula-based balancing score, not as a conventional bounded percentage of balancing effectiveness.
 
 ### 3.6 Implementation Considerations
 
 The implementation requires:
 
-- Maintaining a collection of all available resources.
+- Maintaining a collection of available resources.
 - Tracking the current workload of each resource.
-- Calculating the average workload dynamically.
-- Computing the balancing rate for the selected resource.
-- Handling cases where the average workload is zero to avoid division by zero.
+- Calculating average workload.
+- Computing the balancing score.
+- Handling zero average workload to avoid division by zero.
 
-**Important:** The paper does not explicitly specify the handling of zero average load. This must be documented as an implementation decision rather than attributed to the original algorithm.
+The zero-load handling is an implementation decision because the paper does not explicitly specify this case.
 
 ### 3.7 Integration with DPTARA
 
-CalculateBalancingRate is used to evaluate the workload distribution across resources.
+The load-balancing component evaluates resource workload distribution.
 
-Its output contributes to the evaluation of the overall scheduling and resource allocation strategy.
+Its output contributes to performance evaluation and can be used when comparing different resource allocation strategies.
 
-The calculated balancing rate can subsequently be used when evaluating the performance of DPTARA against baseline scheduling approaches.
+### 3.8 Implementation Status
 
-### 3.8 Unspecified Details
+**Status: Implemented and tested.**
 
-The following details require further investigation before implementation:
+The implementation includes the balancing formula and tests for:
 
-- Whether balancing rate is calculated after every task allocation or after processing a batch of tasks.
-- Whether the balancing rate is calculated for individual resources or aggregated across all resources.
-- How zero average workload should be handled.
-- How the balancing rate is incorporated into the overall objective function.
-- Whether the calculated rate is used directly for scheduling decisions or only for performance evaluation.
+- Multiple resources with different loads.
+- Average workload calculation.
+- Individual resource balancing scores.
+- Zero-load handling.
+- Negative balancing scores.
 
-These details must be verified against the mathematical model and experimental methodology of the paper.
-
-
+The simulator also calculates an average balancing score over observation intervals.
 
 ---
 
-## 4. Linear Regression-Based Load Forecaster
+## 4. Linear Regression-Based Load Predictor
 
 ### 4.1 Purpose
 
-The DPTARA framework incorporates Linear Regression as a load forecasting component.
+The DPTARA framework incorporates load prediction to estimate future resource conditions and support predictive load balancing.
 
-Its purpose is to predict future resource loads using task-related information. These predictions support predictive load balancing and help prevent resource overload.
+The paper discusses Linear Regression in its algorithm description, but does not provide a complete specification of its training procedure, features, or dataset.
 
 ### 4.2 Position in the DPTARA Workflow
 
-According to Algorithm 1:
+The paper describes a prediction component within the DPTARA workflow.
 
-1. The load forecaster is initialized using Linear Regression.
-2. Tasks are processed and their relevant metrics are recorded.
-3. Task sizes are supplied to the prediction component.
-4. Future resource loads are predicted.
-5. The predicted loads are used as part of the predictive load balancing mechanism.
+Its intended role is to estimate future resource loads and help the scheduling mechanism respond to changing workloads.
 
-### 4.3 Input and Output
-
-**Input:**
-- Task sizes.
-- Historical or previously collected workload information, if available.
-
-**Output:**
-- Predicted future resource loads.
-
-Note: The paper explicitly shows task sizes as the prediction input in Algorithm 1. It does not fully define the training dataset or feature construction procedure.
-
-### 4.4 Mathematical Background
+### 4.3 General Linear Regression Formulation
 
 A general Linear Regression model can be represented as:
 
@@ -385,9 +413,9 @@ Where:
 - \(\beta_0\): Intercept.
 - \(\beta_1,\ldots,\beta_k\): Learned coefficients.
 
-This is the general regression formulation, not a complete regression equation specified by the paper.
+This is a general regression formulation, not a complete regression equation specified by the paper.
 
-### 4.5 Relationship with Predictive Load Balancing
+### 4.4 Paper's Predictive Load Equation
 
 The paper defines future load estimation using Equation (13):
 
@@ -405,39 +433,89 @@ Where:
 - \(p_i\): Probability of successful task completion.
 - \(n\): Number of tasks.
 
-This equation describes the paper's predictive load balancing formulation.
+This equation describes the paper's predictive load formulation.
 
-The precise relationship between this equation and the Linear Regression predictor requires further verification before implementation.
+### 4.5 Current Implementation
 
-### 4.6 Implementation Requirements
+The repository implements a historical utilization-based Linear Regression predictor.
 
-The following components must be established:
+Its operation is:
 
-1. Identify the features used for regression.
-2. Identify the prediction target.
-3. Determine how training samples are generated.
-4. Construct the training dataset.
-5. Train the Linear Regression model.
-6. Generate future load predictions.
-7. Evaluate prediction performance.
-8. Integrate predictions into the scheduling workflow.
+1. Collect historical resource utilization observations.
+2. Maintain a bounded history of observations.
+3. Fit or use a regression model based on historical observations.
+4. Predict future utilization values.
+5. Keep predictions within the configured utilization range.
+
+The current implementation uses historical utilization observations rather than directly implementing the paper's Equation (13).
+
+Therefore, the regression predictor should be considered an implementation-level approximation, not an exact reproduction of the paper's predictive load equation.
+
+### 4.6 Difference Between the Paper and Implementation
+
+| Aspect | Research Paper | Current Implementation |
+|---|---|---|
+| Prediction approach | Linear Regression is mentioned; Equation (13) gives a load prediction relationship | Historical utilization-based Linear Regression |
+| Prediction inputs | Task-related quantities in the described equation | Historical utilization observations |
+| Prediction target | Future resource load | Future utilization |
+| Complete training procedure | Not fully specified | Implemented using historical observations |
+| Equation (13) reproduction | Described by the paper | Not directly implemented |
+
+The difference must be considered when interpreting the simulation results.
 
 ### 4.7 Unspecified Details and Research Questions
 
-The paper does not explicitly provide:
+The paper does not fully provide:
 
 - The complete training dataset.
-- The exact independent variables.
-- The exact dependent variable.
-- The training and testing methodology.
-- The regression coefficients.
-- The model evaluation metrics.
-- The exact relationship between the regression output and Equation (13).
+- Exact independent variables.
+- Exact dependent variable.
+- Training and testing methodology.
+- Regression coefficients.
+- Model evaluation metrics.
+- Precise relationship between Linear Regression and Equation (13).
 
-These details must be investigated and documented as implementation decisions.
+These details remain important when attempting a closer reproduction of the original prediction method.
 
 ### 4.8 Implementation Status
 
-Status: Pending implementation.
+**Status: Implemented and individually tested.**
 
-The regression component has been identified and its role in DPTARA has been documented. Its precise training and prediction methodology must be established before coding.
+The current predictor has been tested using historical utilization observations and future prediction requests.
+
+Its integration with the complete allocation and scheduling workflow requires further validation.
+
+---
+
+## 5. Summary of Algorithm Implementation Status
+
+| Algorithm or Component | Current Status |
+|---|---|
+| Algorithm 1: DPTARA workflow | Partially implemented |
+| Algorithm 2: Dynamic task prioritization | Implemented and individually tested |
+| Priority scheduling | Implemented and individually tested |
+| Algorithm 3: Load balancing | Implemented and tested |
+| Historical Linear Regression predictor | Implemented and tested |
+| Paper Equation (13) load prediction | Not directly implemented |
+| Edge resource allocation | Implemented and tested |
+| Cloud fallback allocation | Implemented and tested |
+| Event-driven execution | Implemented and tested |
+| Complete end-to-end integration | Requires further validation |
+| Baseline algorithm comparison | Pending |
+
+---
+
+## 6. Important Modeling Limitations
+
+The following issues must be considered when interpreting the implementation:
+
+1. The paper does not specify a complete numerical distribution for individual task CPU demand.
+2. The computing-time equation combines task size in MB and processing speed in MIPS without specifying a conversion factor.
+3. The resource allocation condition compares task size with CPU-related resource capacity.
+4. The exact priority coefficients are not specified by the paper.
+5. The current regression predictor differs from the paper's Equation (13).
+6. Local resource execution is not included in the current simulator.
+7. Deadline feasibility is not currently used as a CPU-demand-based allocation rejection condition.
+8. Full integration of priority scheduling and predictive load balancing requires further validation.
+
+These limitations are documented explicitly so that implementation assumptions are not confused with the original paper's specifications.

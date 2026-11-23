@@ -668,7 +668,7 @@ class DPTARASimulator:
         )
 
         print(
-            f"Average system utilization: "
+            f"Average normalized resource-load ratio: "
             f"{results['system_utilization_percent']:.2f}%"
         )
 
