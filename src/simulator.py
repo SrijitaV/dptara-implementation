@@ -298,82 +298,80 @@ class DPTARASimulator:
     # --------------------------------------------------
 
     
-def _dispatch_waiting_tasks(self):
-    """
-    Dispatch waiting tasks using the selected algorithm.
 
-    DPTARA uses dynamic priority scheduling.
-    Baselines use their own task-ranking strategies.
-    """
+    def _dispatch_waiting_tasks(self):
+        """Dispatch tasks using the selected algorithm."""
 
-    while self.waiting_tasks:
+        while self.waiting_tasks:
 
-        if self.algorithm == "DPTARA":
+            # DPTARA: dynamically calculate task priorities.
+            if self.algorithm == "DPTARA":
 
-            current_load = self._calculate_system_load()
+                current_load = self._calculate_system_load()
 
-            for task in self.waiting_tasks:
-                task.priority = self.priority_model.calculate_priority(
+                for task in self.waiting_tasks:
+                    task.priority = self.priority_model.calculate_priority(
+                        task,
+                        self.simulation_clock,
+                        current_load
+                    )
+
+                ordered_tasks = sorted(
+                    self.waiting_tasks,
+                    key=lambda task: (
+                        -task.priority,
+                        task.arrival_time,
+                        task.task_id
+                    )
+                )
+
+            # Baselines: use their own task-ranking strategies.
+            else:
+                ordered_tasks = self.strategy.rank_tasks(
+                    self.waiting_tasks,
+                    self.simulation_clock
+                )
+
+            task_allocated = False
+
+            for task in ordered_tasks:
+
+                task.status = "pending"
+
+                selected_resource = self.resource_allocator.allocate_task(
                     task,
-                    self.simulation_clock,
-                    current_load
+                    current_time=self.simulation_clock
                 )
 
-            ordered_tasks = sorted(
-                self.waiting_tasks,
-                key=lambda task: (
-                    -task.priority,
-                    task.arrival_time,
-                    task.task_id
-                )
-            )
+                if selected_resource is None:
+                    continue
 
-        else:
-            # Use the selected baseline's own task-ranking method.
-            ordered_tasks = self.strategy.rank_tasks(
-                self.waiting_tasks,
-                self.simulation_clock
-            )
+                self.waiting_tasks.remove(task)
 
-        task_allocated = False
-
-        for task in ordered_tasks:
-
-            task.status = "pending"
-
-            selected_resource = self.resource_allocator.allocate_task(
-                task,
-                current_time=self.simulation_clock
-            )
-
-            if selected_resource is None:
-                continue
-
-            self.waiting_tasks.remove(task)
-
-            self.task_executor.execute_task(
-                task,
-                selected_resource,
-                self.simulation_clock
-            )
-
-            heapq.heappush(
-                self.event_queue,
-                (
-                    task.completion_time,
-                    0,
-                    next(self.event_counter),
-                    "completion",
+                self.task_executor.execute_task(
                     task,
-                    selected_resource
+                    selected_resource,
+                    self.simulation_clock
                 )
-            )
 
-            task_allocated = True
-            break
+                heapq.heappush(
+                    self.event_queue,
+                    (
+                        task.completion_time,
+                        0,
+                        next(self.event_counter),
+                        "completion",
+                        task,
+                        selected_resource
+                    )
+                )
 
-        if not task_allocated:
-            break
+                task_allocated = True
+                break
+
+            if not task_allocated:
+                break
+
 
 
     # --------------------------------------------------
