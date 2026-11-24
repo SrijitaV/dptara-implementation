@@ -10,7 +10,9 @@ def create_task(task_id, arrival_time, size=2.0):
         original_priority=1.0,
         arrival_time=arrival_time,
         deadline=20.0,
-        task_type="normal"
+        task_type="normal",
+        workload_mi=size * 100.0,
+        cpu_demand_mips=50.0
     )
 
 

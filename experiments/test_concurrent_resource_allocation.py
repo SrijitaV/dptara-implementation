@@ -11,7 +11,9 @@ def create_task(task_id, size_mb, deadline):
         original_priority=1.0,
         arrival_time=0.0,
         deadline=deadline,
-        task_type="normal"
+        task_type="normal",
+        workload_mi=size_mb * 100.0,
+        cpu_demand_mips=50.0
     )
 
 
@@ -69,8 +71,8 @@ def main():
     print(f"3. Task 2 allocated to {resource2.resource_id}: PASSED")
 
     # 4. Verify simultaneous allocation loads
-    assert edge1.current_load == 2
-    assert edge2.current_load == 2
+    assert edge1.current_load == 50
+    assert edge2.current_load == 50
 
     print("4. Simultaneous resource allocation loads: PASSED")
 

@@ -25,7 +25,9 @@ def test_priority_scheduling():
             original_priority=1.0,
             arrival_time=0.0,
             deadline=100.0,
-            task_type="normal"
+            task_type="normal",
+            workload_mi=500.0,
+            cpu_demand_mips=50.0
         ),
         Task(
             task_id=2,
@@ -33,7 +35,9 @@ def test_priority_scheduling():
             original_priority=5.0,
             arrival_time=0.0,
             deadline=100.0,
-            task_type="normal"
+            task_type="normal",
+            workload_mi=500.0,
+            cpu_demand_mips=50.0
         ),
         Task(
             task_id=3,
@@ -44,6 +48,10 @@ def test_priority_scheduling():
             task_type="normal"
         )
     ]
+
+    for task in tasks:
+        task.workload_mi = 500.0
+        task.cpu_demand_mips = 50.0
 
     simulator.waiting_tasks = tasks.copy()
 

@@ -46,7 +46,9 @@ def main():
         original_priority=1.0,
         arrival_time=0.0,
         deadline=10.0,
-        task_type="normal"
+        task_type="normal",
+        workload_mi=200.0,
+        cpu_demand_mips=250.0
     )
 
     selected = allocator.allocate_task(task)
@@ -61,8 +63,8 @@ def main():
     print(f"   CPU demand: {task.cpu_demand_mips:.4f} MIPS")
 
     # Release the reservation
-    task.status = "completed"
     allocator.release_task(task)
+    task.status = "completed"
 
     assert resource.current_load == 0.0
 
@@ -83,7 +85,9 @@ def main():
         original_priority=1.0,
         arrival_time=0.0,
         deadline=0.005,
-        task_type="normal"
+        task_type="normal",
+        workload_mi=200.0,
+        cpu_demand_mips=250.0
     )
 
     selected = allocator.allocate_task(task)
@@ -109,7 +113,9 @@ def main():
         original_priority=1.0,
         arrival_time=0.0,
         deadline=1.0,
-        task_type="normal"
+        task_type="normal",
+        workload_mi=1000.0,
+        cpu_demand_mips=250.0
     )
 
     selected = allocator.allocate_task(task)

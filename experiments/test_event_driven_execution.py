@@ -42,7 +42,9 @@ def main():
         original_priority=1.0,
         arrival_time=0.0,
         deadline=10.0,
-        task_type="normal"
+        task_type="normal",
+        workload_mi=200.0,
+        cpu_demand_mips=50.0
     )
 
     # 4. Submit task through the current arrival handler

@@ -13,9 +13,9 @@ def main():
     manager = ResourceManager()
 
     resources = [
-        Resource("E1", "edge", 1000, 500),
-        Resource("E2", "edge", 1000, 100),
-        Resource("C1", "cloud", 5000, 0)
+        Resource("E1", "edge", 1000, 500, processing_speed_mips=1000, power_consumption_w=50),
+        Resource("E2", "edge", 1000, 100, processing_speed_mips=1000, power_consumption_w=50),
+        Resource("C1", "cloud", 5000, 0, processing_speed_mips=5000, power_consumption_w=100)
     ]
 
     for resource in resources:
@@ -39,7 +39,7 @@ def main():
 
     print("\nTEST 1: Least-loaded edge selection")
 
-    task_1 = Task(1, 5, 1, 0, 100, "routine")
+    task_1 = Task(1, 5, 1, 0, 100, "routine", workload_mi=500, cpu_demand_mips=50)
 
     selected = allocator.allocate_task(task_1)
 
@@ -58,7 +58,7 @@ def main():
 
     print("\nTEST 2: Edge preference over cloud")
 
-    task_2 = Task(2, 5, 1, 0, 100, "routine")
+    task_2 = Task(2, 5, 1, 0, 100, "routine", workload_mi=500, cpu_demand_mips=50)
 
     selected = allocator.allocate_task(task_2)
 
@@ -83,7 +83,7 @@ def main():
     edge_1.current_load = edge_1.capacity
     edge_2.current_load = edge_2.capacity
 
-    task_3 = Task(3, 5, 1, 0, 10, "routine")
+    task_3 = Task(3, 5, 1, 0, 10, "routine", workload_mi=500, cpu_demand_mips=50)
 
     selected = allocator.allocate_task(task_3)
 
